@@ -31,10 +31,9 @@
 #include <fcntl.h>
 #include <gtk/gtk.h>
 
-//#include <deadbeef/deadbeef.h>
-#include <deadbeef.h>
-#include <plugins/gtkui/gtkui_api.h>        // TODO: do something about these files
-#include <plugins/gtkui/support.h>          //    plugin should only need deadbeef.h
+#include <deadbeef/deadbeef.h>
+#include <deadbeef/gtkui_api.h>
+#include "support.h"
 //#include <plugins/artwork/artwork.h>
 
 
@@ -95,34 +94,6 @@ static GtkCellRenderer      *render_icon, *render_text;
 
 static gboolean             flag_on_expand_refresh = FALSE;
 
-
-/*
- * Glade's lookup_wigdet() function
- * from plugins/gtkui/support.c
- */
-
-GtkWidget*
-lookup_widget (GtkWidget *widget, const gchar *widget_name)
-{
-    GtkWidget *parent, *found_widget;
-
-    for (;;) {
-        if (GTK_IS_MENU (widget))
-            parent = gtk_menu_get_attach_widget (GTK_MENU (widget));
-        else
-            parent = widget->parent;
-        if (!parent)
-            parent = (GtkWidget*) g_object_get_data (G_OBJECT (widget), "GladeParentKey");
-        if (parent == NULL)
-            break;
-        widget = parent;
-    }
-
-    found_widget = (GtkWidget*) g_object_get_data (G_OBJECT (widget), widget_name);
-    if (!found_widget)
-        g_warning ("Widget not found: %s", widget_name);
-    return found_widget;
-}
 
 static void
 filebrowser_setup_dragdrop (void)
@@ -268,6 +239,18 @@ filebrowser_stop (void)
     return 0;
 }
 
+gboolean
+filebrowser_init (void *ctx) {
+    filebrowser_create_interface ();
+    filebrowser_create_menu ();
+    if (deadbeef->conf_get_int (CONFSTR_FB_HIDDEN, 0))
+        gtk_widget_hide (sidebar);
+
+    trace("init\n");
+    plugin_init ();
+    return FALSE;
+}
+
 int
 filebrowser_connect (void)
 {
@@ -278,13 +261,7 @@ filebrowser_connect (void)
     //artwork_plugin = (DB_artwork_plugin_t *) deadbeef->plug_get_for_id ("artwork");
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
 
-    filebrowser_create_interface ();
-    filebrowser_create_menu ();
-    if (deadbeef->conf_get_int (CONFSTR_FB_HIDDEN, 0))
-        gtk_widget_hide (sidebar);
-
-    trace("init\n");
-    plugin_init ();
+    g_idle_add (filebrowser_init, NULL);
 
     return 0;
 }
