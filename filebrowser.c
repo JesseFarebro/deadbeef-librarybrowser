@@ -1,6 +1,12 @@
 /*
-    DeaDBeeF - ultimate music player for GNU/Linux systems with X11
-    Copyright (C) 2009-2011 Alexey Yakovenko <waker@users.sourceforge.net>
+    Filebrowser plugin for the DeaDBeeF audio player
+    http://sourceforge.net/projects/deadbeef-fb/
+
+    Copyright (C) 2011 Jan D. Behrens <zykure@web.de>
+
+    Based on Geany treebrowser plugin:
+        treebrowser.c - v0.20
+        Copyright 2010 Adrian Dimitrov <dimitrov.adrian@gmail.com>
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
@@ -15,13 +21,6 @@
     You should have received a copy of the GNU General Public License
     along with this program; if not, write to the Free Software
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-
-    Filebrowser plugin for gtkui
-    Copyright (C) 2011 Jan D. Behrens <zykure@web.de>
-
-    Based on Geany treebrowser plugin:
-        treebrowser.c - v0.20
-        Copyright 2010 Adrian Dimitrov <dimitrov.adrian@gmail.com>
 */
 
 #include <sys/types.h>
@@ -32,26 +31,27 @@
 #include <fcntl.h>
 #include <gtk/gtk.h>
 
+//#include <deadbeef/deadbeef.h>
 #include <deadbeef.h>
-#include <plugins/gtkui/gtkui_api.h>
-#include <plugins/gtkui/support.h>
+#include <plugins/gtkui/gtkui_api.h>        // TODO: do something about these files
+#include <plugins/gtkui/support.h>          //    plugin should only need deadbeef.h
 //#include <plugins/artwork/artwork.h>
 
 
 //#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
 #define trace(fmt,...)
 
-#define   CONFSTR_FB_ENABLED            "filebrowser.enabled"
-#define   CONFSTR_FB_HIDDEN             "filebrowser.hidden"
-#define   CONFSTR_FB_DEFAULT_PATH       "filebrowser.defaultpath"
-#define   CONFSTR_FB_SHOW_HIDDEN_FILES  "filebrowser.showhidden"
-#define   CONFSTR_FB_FILTER_ENABLED     "filebrowser.filter_enabled"
-#define   CONFSTR_FB_FILTER             "filebrowser.filter"
-#define   CONFSTR_FB_FILTER_AUTO        "filebrowser.autofilter"
-#define   CONFSTR_FB_SHOW_BOOKMARKS     "filebrowser.showbookmarks"
-#define   CONFSTR_FB_SHOW_ICONS         "filebrowser.showicons"
-#define   CONFSTR_FB_WIDTH              "filebrowser.sidebar_width"
-#define   CONFSTR_FB_COVERART           "filebrowser.coverart_files"
+#define   CONFSTR_FB_ENABLED                "filebrowser.enabled"
+#define   CONFSTR_FB_HIDDEN                 "filebrowser.hidden"
+#define   CONFSTR_FB_DEFAULT_PATH           "filebrowser.defaultpath"
+#define   CONFSTR_FB_SHOW_HIDDEN_FILES      "filebrowser.showhidden"
+#define   CONFSTR_FB_FILTER_ENABLED         "filebrowser.filter_enabled"
+#define   CONFSTR_FB_FILTER                 "filebrowser.filter"
+#define   CONFSTR_FB_FILTER_AUTO            "filebrowser.autofilter"
+#define   CONFSTR_FB_SHOW_BOOKMARKS         "filebrowser.showbookmarks"
+#define   CONFSTR_FB_SHOW_ICONS             "filebrowser.showicons"
+#define   CONFSTR_FB_WIDTH                  "filebrowser.sidebar_width"
+#define   CONFSTR_FB_COVERART               "filebrowser.coverart_files"
 
 #define   CONFSTR_FB_DEFAULT_PATH_DEFAULT   ""
 #define   CONFSTR_FB_FILTER_DEFAULT         ""
@@ -96,7 +96,6 @@ static GtkCellRenderer      *render_icon, *render_text;
 static gboolean             flag_on_expand_refresh = FALSE;
 
 
-
 /*
  * Glade's lookup_wigdet() function
  * from plugins/gtkui/support.c
@@ -136,7 +135,6 @@ filebrowser_setup_dragdrop (void)
 
     gtk_drag_source_set (treeview, GDK_BUTTON1_MASK, &entry, 1, GDK_ACTION_COPY | GDK_ACTION_MOVE);
     gtk_drag_source_add_uri_targets (treeview);
-
     g_signal_connect(treeview, "drag-data-get", G_CALLBACK (on_drag_data_get), NULL);
 }
 
@@ -144,23 +142,19 @@ static void
 create_autofilter ()
 {
     /* This uses GString to dynamically append all known extensions into a string */
-    GString *buf = g_string_sized_new (256);
+    GString *buf = g_string_sized_new (256);  // reasonable initial size
 
     struct DB_decoder_s **decoders = deadbeef->plug_get_decoder_list ();
     for (gint i = 0; decoders[i]; i++) {
         const gchar **exts = decoders[i]->exts;
-        for (gint j = 0; exts[j]; j++) {
-            gchar *ext = g_ascii_strdown (exts[j], -1); // make sure all extensions are lowercase
-            g_string_append_printf (buf, "*.%s;", ext);
-            g_free (ext);
-        }
+        for (gint j = 0; exts[j]; j++)
+            g_string_append_printf (buf, "*.%s;", exts[j]);
     }
 
     if (known_extensions)
         g_free (known_extensions);
     known_extensions = g_string_free (buf, FALSE);
-
-    trace("autofilter: %s", known_extensions);
+    trace("autofilter: %s\n", known_extensions);
 }
 
 static int
@@ -233,7 +227,7 @@ on_menu_toggle (GtkMenuItem *menuitem, gpointer *user_data)
 static int
 on_config_changed (DB_event_t *ev, uintptr_t data)
 {
-    trace("updateing config");
+    trace("updating config\n");
     create_autofilter ();
     treebrowser_chroot (NULL);  // update treeview
     return 0;
@@ -393,14 +387,13 @@ enum
 #define foreach_dir(filename, dir)      for ((filename) = g_dir_read_name(dir); (filename) != NULL; (filename) = g_dir_read_name(dir))
 #define NZV(ptr)                        (G_LIKELY((ptr)) && G_LIKELY((ptr)[0]))
 #define setptr(ptr, result)             { gpointer setptr_tmp = ptr; ptr = result; g_free(setptr_tmp); }
-
 #define CONFIG_SHOW_ICONS               deadbeef->conf_get_int (CONFSTR_FB_SHOW_ICONS, 1)
-
 
 static void     treebrowser_browse(gchar *directory, gpointer parent);
 static void     treebrowser_bookmarks_set_state();
 static void     treebrowser_load_bookmarks();
 static void     gtk_tree_store_iter_clear_nodes(gpointer iter, gboolean delete_root);
+
 
 /* Check if row defined by iter is expanded or not */
 static gboolean
@@ -1174,8 +1167,6 @@ on_button_add_current ()
         add_uri_to_playlist (uri, -1);
         g_free (uri);
     }
-    g_free (selection);
-    g_free (list_store);
 }
 
 static void
