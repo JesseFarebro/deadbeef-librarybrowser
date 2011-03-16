@@ -9,7 +9,7 @@ CFLAGS += -Wall -std=c99
 
 all : filebrowser.so
 
-filebrowser.so : filebrowser.c
+filebrowser.so : filebrowser.c $(DB_PATH)/deadbeef.h
 	$(CC) $(CFLAGS) $(LDFLAGS)  -o filebrowser.so filebrowser.c $(LIBS)
 
 #install :
