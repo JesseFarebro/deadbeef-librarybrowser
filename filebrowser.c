@@ -37,8 +37,8 @@
 //#include <plugins/artwork/artwork.h>
 
 
-//#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
-#define trace(fmt,...)
+#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
+//#define trace(fmt,...)
 
 #define   CONFSTR_FB_ENABLED                "filebrowser.enabled"
 #define   CONFSTR_FB_HIDDEN                 "filebrowser.hidden"
@@ -79,20 +79,20 @@ static gint                 CONFIG_FILE_ICON_SIZE       = 16;
 static GtkWidget            *sidebar;
 static GtkWidget            *mainmenuitem;
 static GtkWidget            *treeview;
-static GtkTreeStore         *treestore;
+static GtkTreeStore         *treestore                  = NULL;
 static GtkWidget            *sidebar_vbox;
 static GtkWidget            *sidebar_vbox_bars;
 static GtkWidget            *addressbar;
-static gchar                *addressbar_last_address = NULL;
-static gchar                *known_extensions = NULL;
+static gchar                *addressbar_last_address    = NULL;
+static gchar                *known_extensions           = NULL;
 
 static GtkTreeIter          bookmarks_iter;
-static gboolean             bookmarks_expanded = FALSE;
+static gboolean             bookmarks_expanded          = FALSE;
 
 static GtkTreeViewColumn    *treeview_column_text;
 static GtkCellRenderer      *render_icon, *render_text;
 
-static gboolean             flag_on_expand_refresh = FALSE;
+static gboolean             flag_on_expand_refresh      = FALSE;
 
 
 static void
@@ -225,8 +225,6 @@ int
 filebrowser_start (void)
 {
     trace("start\n");
-    deadbeef->ev_subscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED, DB_CALLBACK (on_config_changed), 0);
-
     return 0;
 }
 
@@ -234,8 +232,6 @@ int
 filebrowser_stop (void)
 {
     trace("stop\n");
-    deadbeef->ev_unsubscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED, DB_CALLBACK (on_config_changed), 0);
-
     return 0;
 }
 
@@ -248,6 +244,9 @@ filebrowser_init (void *ctx) {
 
     trace("init\n");
     plugin_init ();
+
+    /* Connect signals AFTER init, since treestore has to exist before being updated */
+    deadbeef->ev_subscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED, DB_CALLBACK (on_config_changed), 0);
     return FALSE;
 }
 
@@ -270,6 +269,7 @@ int
 filebrowser_disconnect (void)
 {
     trace("disconnect\n");
+    deadbeef->ev_unsubscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED, DB_CALLBACK (on_config_changed), 0);
     filebrowser_restore_interface ();
 
     trace("cleanup\n");
@@ -864,7 +864,7 @@ treebrowser_load_bookmarks ()
 
 /* Clear all nodes from tree, optionally deleting the root node */
 static void
-gtk_tree_store_iter_clear_nodes(gpointer iter, gboolean delete_root)
+gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root)
 {
     GtkTreeIter i;
 
@@ -872,7 +872,8 @@ gtk_tree_store_iter_clear_nodes(gpointer iter, gboolean delete_root)
     {
         if (gtk_tree_model_iter_has_child (GTK_TREE_MODEL (treestore), &i))
             gtk_tree_store_iter_clear_nodes (&i, TRUE);
-        gtk_tree_store_remove (GTK_TREE_STORE (treestore), &i);
+        if (gtk_tree_store_iter_is_valid (GTK_TREE_STORE (treestore), &i))
+            gtk_tree_store_remove (GTK_TREE_STORE (treestore), &i);
     }
     if (delete_root)
         gtk_tree_store_remove (GTK_TREE_STORE (treestore), iter);
