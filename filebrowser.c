@@ -637,6 +637,9 @@ treebrowser_chroot(gchar *directory)
     if (! directory)
         directory = addressbar_last_address;
 
+    if (! directory)
+        directory = get_default_dir ();  // fallback
+
     if (g_str_has_suffix (directory, G_DIR_SEPARATOR_S))
         g_strlcpy(directory, directory, strlen (directory));
 
@@ -663,7 +666,6 @@ treebrowser_browse (gchar *directory, gpointer parent)
 {
     GtkTreeIter     iter, iter_empty, *last_dir_iter = NULL;
     gboolean        is_dir;
-    gboolean        is_empty = TRUE;    // show empty dir if all files inside are hidden
     gboolean        expanded = FALSE;
     gboolean        has_parent;
     gchar           *utf8_name;
@@ -691,6 +693,7 @@ treebrowser_browse (gchar *directory, gpointer parent)
 
     list = utils_get_file_list (directory, NULL, NULL);
     if (list != NULL) {
+        gboolean all_hidden = TRUE;  // show "contents hidden" note if all files are hidden
         foreach_slist_free (node, list) {
             fname       = node->data;
             uri         = g_strconcat (directory, fname, NULL);
@@ -721,7 +724,7 @@ treebrowser_browse (gchar *directory, gpointer parent)
                                         TREEBROWSER_COLUMN_NAME,    _("(Empty)"),
                                         TREEBROWSER_COLUMN_URI,     NULL,
                                         -1);
-                    is_empty = FALSE;
+                    all_hidden = FALSE;
                 }
                 else {
                     if (check_filtered (utf8_name)) {
@@ -732,7 +735,7 @@ treebrowser_browse (gchar *directory, gpointer parent)
                                             TREEBROWSER_COLUMN_NAME,    fname,
                                             TREEBROWSER_COLUMN_URI,     uri,
                                             -1);
-                        is_empty = FALSE;
+                        all_hidden = FALSE;
                     }
                 }
 
@@ -743,9 +746,17 @@ treebrowser_browse (gchar *directory, gpointer parent)
             g_free (uri);
             g_free (fname);
         }
+        if (all_hidden) {
+            /*  Directory with all contents hidden */
+            gtk_tree_store_prepend (treestore, &iter_empty, parent);
+            gtk_tree_store_set (treestore, &iter_empty,
+                                TREEBROWSER_COLUMN_ICON,    NULL,
+                                TREEBROWSER_COLUMN_NAME,    ("(Contents hidden)"),
+                                TREEBROWSER_COLUMN_URI,     NULL,
+                                -1);
+        }
     }
-
-    if (is_empty) {
+    else {
         /*  Empty directory */
         gtk_tree_store_prepend (treestore, &iter_empty, parent);
         gtk_tree_store_set (treestore, &iter_empty,
@@ -1010,7 +1021,7 @@ on_menu_show_bookmarks (GtkMenuItem *menuitem, gpointer *user_data)
 {
     gboolean show_bookmarks = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
     deadbeef->conf_set_int (CONFSTR_FB_SHOW_BOOKMARKS, show_bookmarks);
-    treebrowser_chroot (addressbar_last_address);   // update tree
+    treebrowser_chroot (NULL);   // update tree
 }
 
 static void
@@ -1018,7 +1029,7 @@ on_menu_show_hidden_files(GtkMenuItem *menuitem, gpointer *user_data)
 {
     gboolean show_hidden = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
     deadbeef->conf_set_int (CONFSTR_FB_SHOW_HIDDEN_FILES, show_hidden);
-    treebrowser_chroot (addressbar_last_address);   // update tree
+    treebrowser_chroot (NULL);   // update tree
 }
 
 static void
@@ -1026,7 +1037,7 @@ on_menu_use_filter(GtkMenuItem *menuitem, gpointer *user_data)
 {
     gboolean use_filter = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
     deadbeef->conf_set_int (CONFSTR_FB_FILTER_ENABLED, use_filter);
-    treebrowser_chroot (addressbar_last_address);   // update tree
+    treebrowser_chroot (NULL);   // update tree
 }
 
 static GtkWidget*
@@ -1155,7 +1166,7 @@ on_button_add_current ()
 static void
 on_button_refresh ()
 {
-    treebrowser_chroot (addressbar_last_address);
+    treebrowser_chroot (NULL);
 }
 
 static void
@@ -1459,7 +1470,7 @@ void
 plugin_init ()
 {
     create_autofilter ();
-    treebrowser_chroot (get_default_dir ());
+    treebrowser_chroot (NULL);
 }
 
 void
