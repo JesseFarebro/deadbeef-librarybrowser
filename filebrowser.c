@@ -663,7 +663,9 @@ treebrowser_browse (gchar *directory, gpointer parent)
 {
     GtkTreeIter     iter, iter_empty, *last_dir_iter = NULL;
     gboolean        is_dir;
-    gboolean        expanded = FALSE, has_parent;
+    gboolean        is_empty = TRUE;    // show empty dir if all files inside are hidden
+    gboolean        expanded = FALSE;
+    gboolean        has_parent;
     gchar           *utf8_name;
     GSList          *list, *node;
 
@@ -716,9 +718,10 @@ treebrowser_browse (gchar *directory, gpointer parent)
                     gtk_tree_store_prepend (treestore, &iter_empty, &iter);
                     gtk_tree_store_set (treestore, &iter_empty,
                                         TREEBROWSER_COLUMN_ICON,    NULL,
-                                        TREEBROWSER_COLUMN_NAME,    "(Empty)",
+                                        TREEBROWSER_COLUMN_NAME,    _("(Empty)"),
                                         TREEBROWSER_COLUMN_URI,     NULL,
                                         -1);
+                    is_empty = FALSE;
                 }
                 else {
                     if (check_filtered (utf8_name)) {
@@ -729,6 +732,7 @@ treebrowser_browse (gchar *directory, gpointer parent)
                                             TREEBROWSER_COLUMN_NAME,    fname,
                                             TREEBROWSER_COLUMN_URI,     uri,
                                             -1);
+                        is_empty = FALSE;
                     }
                 }
 
@@ -740,12 +744,13 @@ treebrowser_browse (gchar *directory, gpointer parent)
             g_free (fname);
         }
     }
-    else {
+
+    if (is_empty) {
         /*  Empty directory */
         gtk_tree_store_prepend (treestore, &iter_empty, parent);
         gtk_tree_store_set (treestore, &iter_empty,
                             TREEBROWSER_COLUMN_ICON,    NULL,
-                            TREEBROWSER_COLUMN_NAME,    "(Empty)",
+                            TREEBROWSER_COLUMN_NAME,    ("(Empty)"),
                             TREEBROWSER_COLUMN_URI,     NULL,
                             -1);
     }
@@ -802,7 +807,7 @@ treebrowser_load_bookmarks ()
             icon = CONFIG_SHOW_ICONS ? utils_pixbuf_from_stock ("user-bookmarks", CONFIG_DIR_ICON_SIZE) : NULL;
             gtk_tree_store_set (treestore, &bookmarks_iter,
                                 TREEBROWSER_COLUMN_ICON,    icon,
-                                TREEBROWSER_COLUMN_NAME,    "Bookmarks",
+                                TREEBROWSER_COLUMN_NAME,    _("Bookmarks"),
                                 TREEBROWSER_COLUMN_URI,     NULL,
                                 -1);
             if (icon)
@@ -842,7 +847,7 @@ treebrowser_load_bookmarks ()
                     gtk_tree_store_append (treestore, &iter, &iter);
                     gtk_tree_store_set (treestore, &iter,
                                         TREEBROWSER_COLUMN_ICON,    NULL,
-                                        TREEBROWSER_COLUMN_NAME,    "(Empty)",
+                                        TREEBROWSER_COLUMN_NAME,    ("(Empty)"),
                                         TREEBROWSER_COLUMN_URI,     NULL,
                                         -1);
                 }
@@ -886,7 +891,7 @@ add_uri_to_playlist (gchar *uri, int plt)
     if (plt == PLT_CURRENT)
         plt = deadbeef->plt_get_curr ();
     else if (plt == PLT_NEW)
-        plt = deadbeef->plt_add (deadbeef->plt_get_count (), "New Playlist");
+        plt = deadbeef->plt_add (deadbeef->plt_get_count (), _("New Playlist"));
 
     deadbeef->pl_add_files_begin (plt);
     if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
