@@ -15,7 +15,9 @@ all : filebrowser.so
 filebrowser.so : $(SOURCES)
 	$(CC) $(CFLAGS) $(LDFLAGS)  -o filebrowser.so $(SOURCES) $(LIBS)
 
-#install :
+install :
+	/bin/mkdir -p $(HOME)/.local/lib/deadbeef/
+	/usr/bin/install -c -m 644 filebrowser.so $(HOME)/.local/lib/deadbeef/
 
 release :
 	@tar -czvf $(RELEASE) *.c *.h filebrowser.so Makefile COPYING README

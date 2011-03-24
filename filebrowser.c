@@ -321,6 +321,8 @@ filebrowser_connect (void)
     trace("connect\n");
     //artwork_plugin = (DB_artwork_plugin_t *) deadbeef->plug_get_for_id ("artwork");
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
+    if (! gtkui_plugin)
+        return -1;
 
     g_idle_add (filebrowser_init, NULL);
 
@@ -435,6 +437,7 @@ tree_view_row_expanded_iter (GtkTreeView *tree_view, GtkTreeIter *iter)
 
     return expanded;
 }
+
 /* Check if file is filtered (return FALSE if file is filtered and not shown) */
 static gboolean
 check_filtered (const gchar *base_name)
@@ -474,18 +477,52 @@ check_filtered (const gchar *base_name)
     return filtered;
 }
 
-/* Check if row should be expanded */
+/* Check if row should be expanded, returns NULL if not */
 static GSList *
 treeview_check_expanded (gchar *uri)
 {
-    if (! expanded_rows)
+    if (! expanded_rows || ! uri)
         return NULL;
 
     GSList *node;
     for (node = expanded_rows; node; node = node->next)
         if (utils_str_equal (uri, node->data))
             break;
-    return node;
+    return node;  // == NULL if last node was reached
+}
+
+static void
+treeview_clear_expanded (void)
+{
+    if (! expanded_rows)
+        return;
+
+    for (GSList *node = expanded_rows; node; node = node->next)
+        if (node->data)
+            g_free (node->data);
+    g_slist_free (expanded_rows);
+    expanded_rows = g_slist_alloc ();
+}
+
+/* Restore previously expanded nodes */
+static void
+treeview_restore_expanded (gpointer parent)
+{
+    GtkTreeIter i;
+    gchar *uri;
+    gboolean valid = gtk_tree_model_iter_children (GTK_TREE_MODEL (treestore), &i, parent);
+    while (valid){
+        gtk_tree_model_get (GTK_TREE_MODEL (treestore), &i,
+                        TREEBROWSER_COLUMN_URI, &uri, -1);
+        if (treeview_check_expanded (uri)) {
+            gtk_tree_view_expand_row (GTK_TREE_VIEW (treeview),
+                        gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &i),
+                        FALSE);
+            treebrowser_browse (uri, &i);
+        }
+
+        valid = gtk_tree_model_iter_next (GTK_TREE_MODEL (treestore), &i);
+    }
 }
 
 /* Check if file should be hidden (return TRUE if file is not shown) */
@@ -671,13 +708,6 @@ treebrowser_browse (gchar *directory, gpointer parent)
                                     TREEBROWSER_COLUMN_URI,     NULL,
                                     -1);
                     all_hidden = FALSE;
-///// FIXME
-                    if (treeview_check_expanded (uri)) {
-                        trace ("%s is expanded\n", uri);
-                        gtk_tree_view_expand_row (GTK_TREE_VIEW (treeview),
-                                        gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &iter),
-                                        FALSE);
-                    }
                 }
                 else {
                     if (check_filtered (utf8_name)) {
@@ -729,6 +759,8 @@ treebrowser_browse (gchar *directory, gpointer parent)
         treebrowser_load_bookmarks ();
 
     g_free (directory);
+
+    treeview_restore_expanded (parent);
 
     return FALSE;
 }
@@ -836,12 +868,11 @@ treebrowser_load_bookmarks ()
     }
 }
 
-/* Clear all nodes from tree, optionally deleting the root node */
+/* Clear nodes from tree, optionally deleting the root node */
 static void
 gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root)
 {
     GtkTreeIter i;
-
     while (gtk_tree_model_iter_children (GTK_TREE_MODEL (treestore), &i, iter))
     {
         if (gtk_tree_model_iter_has_child (GTK_TREE_MODEL (treestore), &i))
@@ -1002,7 +1033,7 @@ static GtkWidget*
 create_popup_menu (gchar *name, gchar *uri)
 {
     GtkWidget *menu     = gtk_menu_new ();
-    GtkWidget *plmenu   = gtk_menu_new ();
+    GtkWidget *plmenu   = gtk_menu_new ();  // submenu for playlists
     GtkWidget *item;
 
     gboolean is_exists      = g_file_test (uri, G_FILE_TEST_EXISTS);
@@ -1022,7 +1053,9 @@ create_popup_menu (gchar *name, gchar *uri)
         gchar plt_title[32];
         for (int i = 0; i < deadbeef->plt_get_count (); i++) {
             deadbeef->plt_get_title (i, plt_title, sizeof(plt_title));
-            gchar *label = g_strdup_printf("%d: %s", i+1, plt_title);
+            gchar *label = g_strdup_printf("%s%d: %s",
+                            i < 9 ? "_" : "",   // playlists 1..9 with mnemonic
+                            i+1, plt_title);
 
             item = gtk_menu_item_new_with_mnemonic (label);
             gtk_container_add (GTK_CONTAINER (plmenu), item);
@@ -1128,6 +1161,7 @@ on_button_refresh ()
 static void
 on_button_go_up ()
 {
+    treeview_clear_expanded ();
     gchar *uri = g_path_get_dirname (addressbar_last_address);
     treebrowser_chroot (uri);
     g_free (uri);
@@ -1136,6 +1170,7 @@ on_button_go_up ()
 static void
 on_button_go_home ()
 {
+    treeview_clear_expanded ();
     gchar *uri = utils_get_home_dir ();
     treebrowser_chroot (uri);
     g_free (uri);
@@ -1145,14 +1180,16 @@ on_button_go_home ()
 static void
 on_button_go_root ()
 {
+    treeview_clear_expanded ();
     gchar *uri = g_strdup (G_DIR_SEPARATOR_S);
     treebrowser_chroot (uri);
     g_free (uri);
 }
 
 static void
-on_button_current_path ()
+on_button_go_default ()
 {
+    treeview_clear_expanded ();
     gchar *uri = get_default_dir ();
     treebrowser_chroot (uri);
     g_free (uri);
@@ -1161,8 +1198,10 @@ on_button_current_path ()
 static void
 on_addressbar_activate (GtkEntry *entry, gpointer user_data)
 {
-    gchar *directory = gtk_editable_get_chars (GTK_EDITABLE (entry), 0, -1);
-    treebrowser_chroot (directory);
+    treeview_clear_expanded ();
+    gchar *uri = gtk_editable_get_chars (GTK_EDITABLE (entry), 0, -1);
+    treebrowser_chroot (uri);
+    g_free (uri);
 }
 
 
@@ -1224,6 +1263,7 @@ on_treeview_changed (GtkWidget *widget, gpointer user_data)
             gtk_tree_store_iter_clear_nodes (&iter, TRUE);
 
         g_free (uri);
+
         has_selection = TRUE;
     }
 
@@ -1421,7 +1461,7 @@ create_sidebar ()
 
     wid = GTK_WIDGET (gtk_tool_button_new_from_stock (GTK_STOCK_CLEAR));
     gtk_tool_item_set_tooltip_text (GTK_TOOL_ITEM (wid), _("Go to default directory"));
-    g_signal_connect (wid, "clicked", G_CALLBACK (on_button_current_path), NULL);
+    g_signal_connect (wid, "clicked", G_CALLBACK (on_button_go_default), NULL);
     gtk_container_add (GTK_CONTAINER (toolbar), wid);
 
     wid = GTK_WIDGET (gtk_tool_item_new ());
@@ -1466,10 +1506,7 @@ plugin_init ()
 static void
 plugin_cleanup ()
 {
-    for (GSList *node = expanded_rows; node; node = node->next)
-        if (node->data)
-            g_free (node->data);
-    g_slist_free (expanded_rows);
+    treeview_clear_expanded ();
     g_free (addressbar_last_address);
     g_free (known_extensions);
     gtk_widget_destroy (sidebar_vbox);
