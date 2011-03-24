@@ -1,0 +1,47 @@
+Filebrowser plugin for the DeaDBeeF audio player
+http://sourceforge.net/projects/deadbeef-fb/
+
+Copyright (C) 2011 Jan D. Behrens <zykure@web.de>
+
+Based on Geany treebrowser plugin:
+    treebrowser.c - v0.20
+    Copyright 2010 Adrian Dimitrov <dimitrov.adrian@gmail.com>
+
+
+Check out the player itself here:
+    http://deadbeef.sourceforge.net/
+
+
+==========================================================
+
+1. Compiling etc.
+
+* To build the plugin from source, you'll need the deadbeef and GTK2 headers
+  (deadbeef-dev, libgtk2.0-dev)
+
+* To get the sources from git, use the following commands:
+    First donwload:   git clone git://deadbeef-fb.git.sourceforge.net/gitroot/deadbeef-fb/deadbeef-fb
+    Update the tree:  git pull
+
+* Just type "make" to build the plugin as shared library
+
+
+==========================================================
+
+2. Install
+
+* You don't have to be root to install, as DeaDBeeF also loads plugins
+  from your home directory!
+
+* Just type "make install"
+
+* Alternatively, maually copy the file "filebrowser.so" file into the
+  directory "$HOME/.local/deadbeef/lib/"
+
+
+==========================================================
+
+3. Problems?
+
+* If DeaDBeeF stops working after you've installed the plugin, just
+  remove the .so file from the directory described above

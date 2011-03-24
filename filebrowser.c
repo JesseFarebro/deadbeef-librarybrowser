@@ -41,8 +41,8 @@
 ///// TODO:  do proper update checking on config_changed events /////
 
 
-#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
-//#define trace(fmt,...)
+//#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
+#define trace(fmt,...)
 
 #define     CONFSTR_FB_ENABLED              "filebrowser.enabled"
 #define     CONFSTR_FB_HIDDEN               "filebrowser.hidden"
