@@ -319,10 +319,12 @@ int
 filebrowser_connect (void)
 {
     trace("connect\n");
+    /*  FIXME or remove
     if (deadbeef->plug_get_for_id ("filebrowser") != NULL) {
             trace ("plugin already loaded!");
             return -2;
     }
+    */
 
     //artwork_plugin = (DB_artwork_plugin_t *) deadbeef->plug_get_for_id ("artwork");
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
