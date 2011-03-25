@@ -319,6 +319,11 @@ int
 filebrowser_connect (void)
 {
     trace("connect\n");
+    if (deadbeef->plug_get_for_id ("filebrowser") != NULL) {
+            trace ("plugin already loaded!");
+            return -2;
+    }
+
     //artwork_plugin = (DB_artwork_plugin_t *) deadbeef->plug_get_for_id ("artwork");
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
     if (! gtkui_plugin)
@@ -387,7 +392,7 @@ static DB_misc_t plugin = {
         "along with this program; if not, write to the Free Software\n"
         "Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.\n"
     ,
-    .plugin.website = "http://deadbeef.sourceforge.net",
+    .plugin.website = "http://sourceforge.net/projects/deadbeef-fb/",
     .plugin.start = filebrowser_start,
     .plugin.stop = filebrowser_stop,
     .plugin.connect = filebrowser_connect,

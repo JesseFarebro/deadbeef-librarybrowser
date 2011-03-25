@@ -4,9 +4,9 @@ CFLAGS  += `pkg-config --cflags gtk+-2.0`
 LIBS    += `pkg-config --libs   gtk+-2.0`
 LDFLAGS += -shared
 
-CFLAGS  += -Wall -std=c99
+CFLAGS  += -Wall -std=c99 -O2 -g
 
-INSTDIR  = $(HOME)/.local/deadbeef/lib/
+PREFIX  ?= /usr/
 RELEASE  = deadbeef-fb_$(DATE).tar.gz
 SOURCES  = filebrowser.c support.c utils.c
 
@@ -16,14 +16,17 @@ filebrowser.so : $(SOURCES)
 	$(CC) $(CFLAGS) $(LDFLAGS)  -o filebrowser.so $(SOURCES) $(LIBS)
 
 install :
-	/bin/mkdir -p $(HOME)/.local/lib/deadbeef/
-	/usr/bin/install -c -m 644 filebrowser.so $(HOME)/.local/lib/deadbeef/
+	/bin/mkdir -p $(PREFIX)/lib/deadbeef/
+	/usr/bin/install -c -m 644 filebrowser.so $(PREFIX)/lib/deadbeef/
+
+uninstall :
+	/bin/rm -f $(PREFIX)/lib/deadbeef/filebrowser.so
 
 release :
-	@tar -czvf $(RELEASE) *.c *.h filebrowser.so Makefile COPYING README
+	@tar -czvf $(RELEASE) *.c *.h filebrowser.so Makefile COPYING README install.sh
 	@mv $(RELEASE) ../$(RELEASE)
 
-clean:
+clean :
 	@rm -f filebrowser.o support.o utils.o filebrowser.so
 
-.PHONY: all install release clean
+.PHONY : all install release clean

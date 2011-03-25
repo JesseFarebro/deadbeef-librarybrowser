@@ -30,13 +30,14 @@ Check out the player itself here:
 
 2. Install
 
-* You don't have to be root to install, as DeaDBeeF also loads plugins
-  from your home directory!
-
-* Just type "make install"
+* Just run the "install.sh" script - it will install the plugin into your
+  home directory
 
 * Alternatively, maually copy the file "filebrowser.so" file into the
   directory "$HOME/.local/deadbeef/lib/"
+
+* If you compiled from source, you can also just type "make install", which
+  will install the plugin into the PREFIX directory (default: /usr)
 
 
 ==========================================================
