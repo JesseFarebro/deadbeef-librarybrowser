@@ -1,4 +1,6 @@
 #!/bin/bash
 
-/bin/mkdir -p "${HOME}/lib/deadbeef/"
-/usr/bin/install -c -m 644 ./filebrowser.so "${HOME}/lib/deadbeef/filebrowser.so"
+TARGET="${HOME}/.local/lib/deadbeef"
+
+/bin/mkdir -p "${TARGET}"
+/usr/bin/install -v -c -m 644 ./filebrowser.so "${TARGET}/filebrowser.so"
