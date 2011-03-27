@@ -1059,11 +1059,14 @@ create_popup_menu (gchar *name, gchar *uri)
     if (is_exists) {
         gchar plt_title[32];
         for (int i = 0; i < deadbeef->plt_get_count (); i++) {
-            deadbeef->plt_get_title (i, plt_title, sizeof(plt_title));
+            deadbeef->plt_lock ();
+            void *handle = deadbeef->plt_get_handle (i);
+            deadbeef->plt_get_title (handle, plt_title, sizeof(plt_title));
+            deadbeef->plt_unlock ();
+
             gchar *label = g_strdup_printf("%s%d: %s",
                             i < 9 ? "_" : "",   // playlists 1..9 with mnemonic
                             i+1, plt_title);
-
             item = gtk_menu_item_new_with_mnemonic (label);
             gtk_container_add (GTK_CONTAINER (plmenu), item);
             g_signal_connect (item, "activate", G_CALLBACK (on_menu_add), uri);
