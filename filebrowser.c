@@ -450,6 +450,13 @@ filebrowser_stop (void)
     trace("stop\n");
     filebrowser_save_config ();
 
+    if (CONFIG_DEFAULT_PATH)
+        g_free ((gchar*) CONFIG_DEFAULT_PATH);
+    if (CONFIG_FILTER)
+        g_free ((gchar*) CONFIG_FILTER);
+    if (CONFIG_COVERART)
+        g_free ((gchar*) CONFIG_COVERART);
+
     return 0;
 }
 
