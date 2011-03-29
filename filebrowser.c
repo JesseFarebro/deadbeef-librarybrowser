@@ -38,9 +38,6 @@
 //#include <plugins/artwork/artwork.h>
 
 
-///// TODO:  do proper update checking on config_changed events /////
-
-
 //#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
 #define trace(fmt,...)
 
@@ -59,19 +56,6 @@
 #define     CONFSTR_FB_DEFAULT_PATH_DEFAULT ""
 #define     CONFSTR_FB_FILTER_DEFAULT       ""
 #define     CONFSTR_FB_COVERART_DEFAULT     "cover.jpg;folder.jpg;front.jpg"
-
-#define     CONFIG_ENABLED              deadbeef->conf_get_int (CONFSTR_FB_ENABLED,             TRUE)
-#define     CONFIG_HIDDEN               deadbeef->conf_get_int (CONFSTR_FB_HIDDEN,              FALSE)
-#define     CONFIG_DEFAULT_PATH         deadbeef->conf_get_str (CONFSTR_FB_DEFAULT_PATH,        CONFSTR_FB_DEFAULT_PATH_DEFAULT)
-#define     CONFIG_SHOW_HIDDEN_FILES    deadbeef->conf_get_int (CONFSTR_FB_SHOW_HIDDEN_FILES,   FALSE)
-#define     CONFIG_FILTER_ENABLED       deadbeef->conf_get_int (CONFSTR_FB_FILTER_ENABLED,      TRUE)
-#define     CONFIG_FILTER               deadbeef->conf_get_str (CONFSTR_FB_FILTER,              CONFSTR_FB_FILTER_DEFAULT)
-#define     CONFIG_FILTER_AUTO          deadbeef->conf_get_int (CONFSTR_FB_FILTER_AUTO,         TRUE)
-#define     CONFIG_SHOW_BOOKMARKS       deadbeef->conf_get_int (CONFSTR_FB_SHOW_BOOKMARKS,      TRUE)
-#define     CONFIG_SHOW_ICONS           deadbeef->conf_get_int (CONFSTR_FB_SHOW_ICONS,          TRUE)
-#define     CONFIG_WIDTH                deadbeef->conf_get_int (CONFSTR_FB_WIDTH,               200)
-#define     CONFIG_COVERART             deadbeef->conf_get_str (CONFSTR_FB_COVERART,            CONFSTR_FB_COVERART_DEFAULT)
-
 
 static DB_misc_t plugin;
 DB_functions_t *deadbeef;
@@ -95,6 +79,17 @@ static gboolean             CONFIG_SHOW_TREE_LINES      = FALSE;
 static gint                 CONFIG_DIR_ICON_SIZE        = 24;
 static gint                 CONFIG_FILE_ICON_SIZE       = 16;
 
+static gboolean             CONFIG_ENABLED              = TRUE;
+static gboolean             CONFIG_HIDDEN               = FALSE;
+static const gchar *        CONFIG_DEFAULT_PATH         = NULL;
+static gboolean             CONFIG_SHOW_HIDDEN_FILES    = FALSE;
+static gboolean             CONFIG_FILTER_ENABLED       = TRUE;
+static const gchar *        CONFIG_FILTER               = NULL;
+static gboolean             CONFIG_FILTER_AUTO          = TRUE;
+static gboolean             CONFIG_SHOW_BOOKMARKS       = TRUE;
+static gboolean             CONFIG_SHOW_ICONS           = TRUE;
+static gint                 CONFIG_WIDTH                = 200;
+static const gchar *        CONFIG_COVERART             = NULL;
 
 static GtkWidget            *sidebar;
 static GtkWidget            *mainmenuitem;
@@ -114,7 +109,7 @@ static GtkTreeViewColumn    *treeview_column_text;
 static GtkCellRenderer      *render_icon, *render_text;
 
 static gboolean             flag_on_expand_refresh      = FALSE;
-
+static gboolean             pending_disable             = FALSE; // True if plugin is disabled on next startup
 
 static void
 filebrowser_setup_dragdrop (void)
@@ -195,9 +190,11 @@ static int
 filebrowser_restore_interface (void)
 {
     // save current width of sidebar
-    GtkAllocation alloc;
-    gtk_widget_get_allocation (sidebar, &alloc);
-    deadbeef->conf_set_int (CONFSTR_FB_WIDTH, alloc.width);
+    if (CONFIG_ENABLED && ! CONFIG_HIDDEN && ! pending_disable) {
+        GtkAllocation alloc;
+        gtk_widget_get_allocation (sidebar, &alloc);
+        CONFIG_WIDTH = alloc.width;
+    }
 
     // restore old interface
     ///// TODO: Add restore, needed when plugin is disabled from settings dialog /////
@@ -208,10 +205,9 @@ filebrowser_restore_interface (void)
 static void
 on_menu_toggle (GtkMenuItem *menuitem, gpointer *user_data)
 {
-    gboolean hidden = ! gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
-    deadbeef->conf_set_int (CONFSTR_FB_HIDDEN, hidden);
+    CONFIG_HIDDEN = ! gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
 
-    if (hidden)
+    if (CONFIG_HIDDEN)
         gtk_widget_hide (sidebar);
     else
         gtk_widget_show (sidebar);
@@ -219,22 +215,125 @@ on_menu_toggle (GtkMenuItem *menuitem, gpointer *user_data)
 
 gboolean
 filebrowser_update (void *ctx) {
-    if (! CONFIG_HIDDEN)
-        gtk_widget_show (sidebar);
-    else
-        gtk_widget_hide (sidebar);
-
-    gtk_widget_set_size_request (sidebar, CONFIG_WIDTH, -1);
-
     treebrowser_chroot (NULL);  // update treeview
 
     /* This function MUST return false because it's called from g_idle_add() */
     return FALSE;
 }
 
+static void
+filebrowser_save_config (void)
+{
+    trace("saving settings: \n"
+        "enabled:           %d \n"
+        "hidden:            %d \n"
+        "defaultpath:       %s \n"
+        "show_hidden:       %d \n"
+        "filter_enabled:    %d \n"
+        "filter:            %s \n"
+        "filter_auto:       %d \n"
+        "show_bookmarks:    %d \n"
+        "show_icons:        %d \n"
+        "width:             %d \n"
+        "coverart:          %s \n",
+        CONFIG_ENABLED,
+        CONFIG_HIDDEN,
+        CONFIG_DEFAULT_PATH,
+        CONFIG_SHOW_HIDDEN_FILES,
+        CONFIG_FILTER_ENABLED,
+        CONFIG_FILTER,
+        CONFIG_FILTER_AUTO,
+        CONFIG_SHOW_BOOKMARKS,
+        CONFIG_SHOW_ICONS,
+        CONFIG_WIDTH,
+        CONFIG_COVERART
+        );
+
+    deadbeef->conf_set_int (CONFSTR_FB_ENABLED,             CONFIG_ENABLED);
+    deadbeef->conf_set_int (CONFSTR_FB_HIDDEN,              CONFIG_HIDDEN);
+    deadbeef->conf_set_int (CONFSTR_FB_SHOW_HIDDEN_FILES,   CONFIG_SHOW_HIDDEN_FILES);
+    deadbeef->conf_set_int (CONFSTR_FB_FILTER_ENABLED,      CONFIG_FILTER_ENABLED);
+    deadbeef->conf_set_int (CONFSTR_FB_FILTER_AUTO,         CONFIG_FILTER_AUTO);
+    deadbeef->conf_set_int (CONFSTR_FB_SHOW_BOOKMARKS,      CONFIG_SHOW_BOOKMARKS);
+    deadbeef->conf_set_int (CONFSTR_FB_SHOW_ICONS,          CONFIG_SHOW_ICONS);
+    deadbeef->conf_set_int (CONFSTR_FB_WIDTH,               CONFIG_WIDTH);
+
+    if (CONFIG_DEFAULT_PATH)
+        deadbeef->conf_set_str (CONFSTR_FB_DEFAULT_PATH,    CONFIG_DEFAULT_PATH);
+    if (CONFIG_FILTER)
+        deadbeef->conf_set_str (CONFSTR_FB_FILTER,          CONFIG_FILTER);
+    if (CONFIG_COVERART)
+        deadbeef->conf_set_str (CONFSTR_FB_COVERART,        CONFIG_COVERART);
+}
+
+static void
+filebrowser_load_config (void)
+{
+    if (CONFIG_DEFAULT_PATH)
+        g_free ((gchar*) CONFIG_DEFAULT_PATH);
+    if (CONFIG_FILTER)
+        g_free ((gchar*) CONFIG_FILTER);
+    if (CONFIG_COVERART)
+        g_free ((gchar*) CONFIG_COVERART);
+
+    CONFIG_ENABLED              = deadbeef->conf_get_int (CONFSTR_FB_ENABLED,             TRUE);
+    CONFIG_HIDDEN               = deadbeef->conf_get_int (CONFSTR_FB_HIDDEN,              FALSE);
+    CONFIG_SHOW_HIDDEN_FILES    = deadbeef->conf_get_int (CONFSTR_FB_SHOW_HIDDEN_FILES,   FALSE);
+    CONFIG_FILTER_ENABLED       = deadbeef->conf_get_int (CONFSTR_FB_FILTER_ENABLED,      TRUE);
+    CONFIG_FILTER_AUTO          = deadbeef->conf_get_int (CONFSTR_FB_FILTER_AUTO,         TRUE);
+    CONFIG_SHOW_BOOKMARKS       = deadbeef->conf_get_int (CONFSTR_FB_SHOW_BOOKMARKS,      TRUE);
+    CONFIG_SHOW_ICONS           = deadbeef->conf_get_int (CONFSTR_FB_SHOW_ICONS,          TRUE);
+    CONFIG_WIDTH                = deadbeef->conf_get_int (CONFSTR_FB_WIDTH,               200);
+
+    CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_DEFAULT_PATH,        CONFSTR_FB_DEFAULT_PATH_DEFAULT));
+    CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_FILTER,              CONFSTR_FB_FILTER_DEFAULT));
+    CONFIG_COVERART             = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_COVERART,            CONFSTR_FB_COVERART_DEFAULT));
+
+    trace("loaded settings: \n"
+        "enabled:           %d \n"
+        "hidden:            %d \n"
+        "defaultpath:       %s \n"
+        "show_hidden:       %d \n"
+        "filter_enabled:    %d \n"
+        "filter:            %s \n"
+        "filter_auto:       %d \n"
+        "show_bookmarks:    %d \n"
+        "show_icons:        %d \n"
+        "width:             %d \n"
+        "coverart:          %s \n",
+        CONFIG_ENABLED,
+        CONFIG_HIDDEN,
+        CONFIG_DEFAULT_PATH,
+        CONFIG_SHOW_HIDDEN_FILES,
+        CONFIG_FILTER_ENABLED,
+        CONFIG_FILTER,
+        CONFIG_FILTER_AUTO,
+        CONFIG_SHOW_BOOKMARKS,
+        CONFIG_SHOW_ICONS,
+        CONFIG_WIDTH,
+        CONFIG_COVERART
+        );
+}
+
 static int
 on_config_changed (DB_event_t *ev, uintptr_t data)
 {
+    gboolean    enabled         = CONFIG_ENABLED;
+    gboolean    hidden          = CONFIG_HIDDEN;
+    gchar *     default_path    = g_strdup (CONFIG_DEFAULT_PATH);
+    gboolean    show_hidden     = CONFIG_SHOW_HIDDEN_FILES;
+    gboolean    filter_enabled  = CONFIG_FILTER_ENABLED;
+    gchar *     filter          = g_strdup (CONFIG_FILTER);
+    gboolean    filter_auto     = CONFIG_FILTER_AUTO;
+    gboolean    show_bookmarks  = CONFIG_SHOW_BOOKMARKS;
+    gboolean    show_icons      = CONFIG_SHOW_ICONS;
+    gint        width           = CONFIG_WIDTH;
+    gchar *     coverart        = g_strdup (CONFIG_COVERART);
+
+    gboolean do_update = FALSE;
+
+    filebrowser_load_config ();
+
     trace("new settings: \n"
         "enabled:           %d \n"
         "hidden:            %d \n"
@@ -260,7 +359,62 @@ on_config_changed (DB_event_t *ev, uintptr_t data)
         CONFIG_COVERART
         );
 
-    g_idle_add (filebrowser_update, NULL);
+    //// TODO: Restore interface on disable
+    if (enabled != CONFIG_ENABLED) {
+        //// FIXME: Dialog causes freeze - why??
+        /*
+        GtkWidget *dialog = gtk_message_dialog_new (NULL,
+                        0, //GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                        GTK_MESSAGE_INFO,
+                        GTK_BUTTONS_OK,
+                        "DeaDBeeF has to be restarted to fully enable/disable\n"
+                        "the Filebrowser plugin.\n");
+        gtk_dialog_run (GTK_DIALOG (dialog));
+        gtk_widget_destroy (dialog);
+        gtk_widget_hide (sidebar);
+        */
+        pending_disable = ! enabled;
+    }
+
+    if (hidden != CONFIG_HIDDEN) {
+        if (CONFIG_HIDDEN)
+            gtk_widget_hide (sidebar);
+        else
+            gtk_widget_show (sidebar);
+    }
+
+    if (width != CONFIG_WIDTH)
+        gtk_widget_set_size_request (sidebar, CONFIG_WIDTH, -1);
+
+    if ((show_hidden != CONFIG_SHOW_HIDDEN_FILES) ||
+            (filter_enabled != CONFIG_FILTER_ENABLED) ||
+            (filter_enabled && (filter_auto != CONFIG_FILTER_AUTO)) ||
+            (show_bookmarks != CONFIG_SHOW_BOOKMARKS) ||
+            (show_icons != CONFIG_SHOW_ICONS))
+        do_update = TRUE;
+
+    if (CONFIG_FILTER_ENABLED) {
+        if (CONFIG_FILTER_AUTO) {
+            gchar *autofilter = g_strdup (known_extensions);
+            create_autofilter ();
+            if (! utils_str_equal (autofilter, known_extensions))
+                do_update = TRUE;
+            g_free (autofilter);
+        }
+        else
+            if (! utils_str_equal (filter, CONFIG_FILTER))
+                do_update = TRUE;
+    }
+
+    if (! utils_str_equal (coverart, CONFIG_COVERART))
+        do_update = TRUE;
+
+    g_free (default_path);
+    g_free (filter);
+    g_free (coverart);
+
+    if (do_update && CONFIG_ENABLED)
+        g_idle_add (filebrowser_update, NULL);
 
     return 0;
 }
@@ -285,6 +439,8 @@ int
 filebrowser_start (void)
 {
     trace("start\n");
+    filebrowser_load_config ();
+
     return 0;
 }
 
@@ -292,21 +448,21 @@ int
 filebrowser_stop (void)
 {
     trace("stop\n");
+    filebrowser_save_config ();
+
     return 0;
 }
 
 gboolean
 filebrowser_init (void *ctx) {
-    if (! CONFIG_ENABLED)
-        return 1;
+    if (CONFIG_ENABLED) {
+        filebrowser_create_interface ();
+        filebrowser_create_menu ();
+        if (CONFIG_HIDDEN)
+            gtk_widget_hide (sidebar);
 
-    filebrowser_create_interface ();
-    filebrowser_create_menu ();
-    if (CONFIG_HIDDEN)
-        gtk_widget_hide (sidebar);
-
-    trace("init\n");
-    plugin_init ();
+        plugin_init ();
+    }
 
     deadbeef->ev_subscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED,
                     DB_CALLBACK (on_config_changed), 0);
@@ -319,13 +475,6 @@ int
 filebrowser_connect (void)
 {
     trace("connect\n");
-    /*  FIXME or remove
-    if (deadbeef->plug_get_for_id ("filebrowser") != NULL) {
-            trace ("plugin already loaded!");
-            return -2;
-    }
-    */
-
     //artwork_plugin = (DB_artwork_plugin_t *) deadbeef->plug_get_for_id ("artwork");
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
     if (! gtkui_plugin)
@@ -1015,24 +1164,21 @@ on_menu_copy_uri(GtkMenuItem *menuitem, gchar *uri)
 static void
 on_menu_show_bookmarks (GtkMenuItem *menuitem, gpointer *user_data)
 {
-    gboolean show_bookmarks = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
-    deadbeef->conf_set_int (CONFSTR_FB_SHOW_BOOKMARKS, show_bookmarks);
+    CONFIG_SHOW_BOOKMARKS = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
     treebrowser_chroot (NULL);   // update tree
 }
 
 static void
 on_menu_show_hidden_files(GtkMenuItem *menuitem, gpointer *user_data)
 {
-    gboolean show_hidden = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
-    deadbeef->conf_set_int (CONFSTR_FB_SHOW_HIDDEN_FILES, show_hidden);
+    CONFIG_SHOW_HIDDEN_FILES = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
     treebrowser_chroot (NULL);   // update tree
 }
 
 static void
 on_menu_use_filter(GtkMenuItem *menuitem, gpointer *user_data)
 {
-    gboolean filter_enabled = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
-    deadbeef->conf_set_int (CONFSTR_FB_FILTER_ENABLED, filter_enabled);
+    CONFIG_FILTER_ENABLED = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
     treebrowser_chroot (NULL);   // update tree
 }
 
@@ -1508,6 +1654,7 @@ create_sidebar ()
 static void
 plugin_init ()
 {
+    trace ("init");
     create_autofilter ();
     expanded_rows = g_slist_alloc ();
     treebrowser_chroot (NULL);
@@ -1516,6 +1663,7 @@ plugin_init ()
 static void
 plugin_cleanup ()
 {
+    trace ("cleanup");
     treeview_clear_expanded ();
     g_free (addressbar_last_address);
     g_free (known_extensions);
