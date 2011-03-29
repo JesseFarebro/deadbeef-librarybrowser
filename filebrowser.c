@@ -564,7 +564,8 @@ enum
     TREEBROWSER_COLUMN_ICON         = 0,
     TREEBROWSER_COLUMN_NAME         = 1,
     TREEBROWSER_COLUMN_URI          = 2,        // needed for browsing
-    TREEBROWSER_COLUMN_FLAG         = 3,        // needed for separator
+    TREEBROWSER_COLUMN_TOOLTIP      = 3,
+    TREEBROWSER_COLUMN_FLAG         = 4,        // needed for separator
     TREEBROWSER_COLUMNC,                        // count is set automatically
 
     TREEBROWSER_RENDER_ICON         = 0,
@@ -735,7 +736,7 @@ get_icon_for_uri (gchar *uri)
     }
 
     // Fallback to default icon
-    return utils_pixbuf_from_stock("folder", CONFIG_DIR_ICON_SIZE);
+    return utils_pixbuf_from_stock ("folder", CONFIG_DIR_ICON_SIZE);
 }
 
 /* Check if path entered in addressbar really is a directory */
@@ -806,6 +807,7 @@ treebrowser_browse (gchar *directory, gpointer parent)
 
     gchar           *fname;
     gchar           *uri;
+    gchar           *tooltip;
 
     if (! directory)
         directory = addressbar_last_address;
@@ -838,6 +840,7 @@ treebrowser_browse (gchar *directory, gpointer parent)
             uri         = g_strconcat (directory, fname, NULL);
             is_dir      = g_file_test (uri, G_FILE_TEST_IS_DIR);
             utf8_name   = utils_get_utf8_from_locale (fname);
+            tooltip     = utils_tooltip_from_uri (uri);
 
             if (! check_hidden (uri)) {
                 GdkPixbuf *icon = NULL;
@@ -856,12 +859,14 @@ treebrowser_browse (gchar *directory, gpointer parent)
                                     TREEBROWSER_COLUMN_ICON,    icon,
                                     TREEBROWSER_COLUMN_NAME,    fname,
                                     TREEBROWSER_COLUMN_URI,     uri,
+                                    TREEBROWSER_COLUMN_TOOLTIP, tooltip,
                                     -1);
                     gtk_tree_store_prepend (treestore, &iter_empty, &iter);
                     gtk_tree_store_set (treestore, &iter_empty,
                                     TREEBROWSER_COLUMN_ICON,    NULL,
                                     TREEBROWSER_COLUMN_NAME,    _("(Empty)"),
                                     TREEBROWSER_COLUMN_URI,     NULL,
+                                    TREEBROWSER_COLUMN_TOOLTIP, NULL,
                                     -1);
                     all_hidden = FALSE;
                 }
@@ -873,6 +878,7 @@ treebrowser_browse (gchar *directory, gpointer parent)
                                         TREEBROWSER_COLUMN_ICON,    icon,
                                         TREEBROWSER_COLUMN_NAME,    fname,
                                         TREEBROWSER_COLUMN_URI,     uri,
+                                        TREEBROWSER_COLUMN_TOOLTIP, tooltip,
                                         -1);
                         all_hidden = FALSE;
                     }
@@ -884,14 +890,16 @@ treebrowser_browse (gchar *directory, gpointer parent)
             g_free (utf8_name);
             g_free (uri);
             g_free (fname);
+            g_free (tooltip);
         }
         if (all_hidden) {
             /*  Directory with all contents hidden */
             gtk_tree_store_prepend (treestore, &iter_empty, parent);
             gtk_tree_store_set (treestore, &iter_empty,
                             TREEBROWSER_COLUMN_ICON,    NULL,
-                            TREEBROWSER_COLUMN_NAME,    ("(Contents hidden)"),
+                            TREEBROWSER_COLUMN_NAME,    _("(Contents hidden)"),
                             TREEBROWSER_COLUMN_URI,     NULL,
+                            TREEBROWSER_COLUMN_TOOLTIP, _("This directory has files in it, but they are filtered out"),
                             -1);
         }
     }
@@ -900,8 +908,9 @@ treebrowser_browse (gchar *directory, gpointer parent)
         gtk_tree_store_prepend (treestore, &iter_empty, parent);
         gtk_tree_store_set (treestore, &iter_empty,
                         TREEBROWSER_COLUMN_ICON,    NULL,
-                        TREEBROWSER_COLUMN_NAME,    ("(Empty)"),
+                        TREEBROWSER_COLUMN_NAME,    _("(Empty)"),
                         TREEBROWSER_COLUMN_URI,     NULL,
+                        TREEBROWSER_COLUMN_TOOLTIP, _("This directory has nothing in it"),
                         -1);
     }
 
@@ -937,7 +946,7 @@ static void
 treebrowser_load_bookmarks ()
 {
     gchar           *bookmarks;
-    gchar           *contents, *path_full;
+    gchar           *contents, *path_full, *basename, *tooltip;
     gchar           **lines, **line;
     GtkTreeIter     iter;
     gchar           *pos;
@@ -965,6 +974,7 @@ treebrowser_load_bookmarks ()
                             TREEBROWSER_COLUMN_ICON,    icon,
                             TREEBROWSER_COLUMN_NAME,    _("Bookmarks"),
                             TREEBROWSER_COLUMN_URI,     NULL,
+                            TREEBROWSER_COLUMN_TOOLTIP, _("Your personal bookmarks"),
                             -1);
             if (icon)
                 g_object_unref (icon);
@@ -974,6 +984,7 @@ treebrowser_load_bookmarks ()
                             TREEBROWSER_COLUMN_ICON,    NULL,
                             TREEBROWSER_COLUMN_NAME,    NULL,
                             TREEBROWSER_COLUMN_URI,     NULL,
+                            TREEBROWSER_COLUMN_TOOLTIP, NULL,
                             TREEBROWSER_COLUMN_FLAG,    TREEBROWSER_FLAGS_SEPARATOR,
                             -1);
         }
@@ -989,6 +1000,8 @@ treebrowser_load_bookmarks ()
                     name = NULL;
             }
             path_full = g_filename_from_uri (*line, NULL, NULL);
+            basename  = path_full ? g_path_get_basename (path_full) : NULL;
+            tooltip   = utils_tooltip_from_uri (path_full);
             if (path_full != NULL) {
                 if (g_file_test (path_full, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)) {
                     gtk_tree_store_append (treestore, &iter, &bookmarks_iter);
@@ -996,19 +1009,23 @@ treebrowser_load_bookmarks ()
                                     utils_pixbuf_from_stock ("folder", CONFIG_DIR_ICON_SIZE) : NULL;
                     gtk_tree_store_set (treestore, &iter,
                                     TREEBROWSER_COLUMN_ICON,    icon,
-                                    TREEBROWSER_COLUMN_NAME,    g_basename (path_full),
+                                    TREEBROWSER_COLUMN_NAME,    basename,
                                     TREEBROWSER_COLUMN_URI,     path_full,
+                                    TREEBROWSER_COLUMN_TOOLTIP, tooltip,
                                     -1);
                     if (icon)
                         g_object_unref(icon);
                     gtk_tree_store_append (treestore, &iter, &iter);
                     gtk_tree_store_set (treestore, &iter,
                                     TREEBROWSER_COLUMN_ICON,    NULL,
-                                    TREEBROWSER_COLUMN_NAME,    ("(Empty)"),
+                                    TREEBROWSER_COLUMN_NAME,    _("(Empty)"),
                                     TREEBROWSER_COLUMN_URI,     NULL,
+                                    TREEBROWSER_COLUMN_TOOLTIP, NULL,
                                     -1);
                 }
                 g_free (path_full);
+                g_free (basename);
+                g_free (tooltip);
             }
         }
         g_strfreev (lines);
@@ -1562,12 +1579,12 @@ create_view_and_model ()
                     GTK_SELECTION_SINGLE);
 
 #if GTK_CHECK_VERSION(2, 10, 0)
-    g_object_set (view, "has-tooltip", TRUE, "tooltip-column", TREEBROWSER_COLUMN_URI, NULL);
+    g_object_set (view, "has-tooltip", TRUE, "tooltip-column", TREEBROWSER_COLUMN_TOOLTIP, NULL);
     gtk_tree_view_set_enable_tree_lines (GTK_TREE_VIEW (view), CONFIG_SHOW_TREE_LINES);
 #endif
 
     treestore = gtk_tree_store_new (TREEBROWSER_COLUMNC, GDK_TYPE_PIXBUF,
-                    G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
+                    G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_INT);
     gtk_tree_view_set_model (GTK_TREE_VIEW(view), GTK_TREE_MODEL (treestore));
 
     return view;

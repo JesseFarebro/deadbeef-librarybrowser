@@ -130,3 +130,15 @@ utils_get_home_dir (void)
         return g_strdup (g_getenv ("HOME"));
     return g_strdup (g_get_home_dir ());
 }
+
+gchar *
+utils_tooltip_from_uri (const gchar *uri)
+{
+    /* Tooltips can't have an ampersand '&' in them */
+    if (! uri)
+        return NULL;
+    gchar **strings = g_strsplit (uri, "&", 0);
+    gchar *result = g_strjoinv ("&amp;", strings);
+    g_strfreev (strings);
+    return result;
+}

@@ -28,3 +28,6 @@ utils_get_utf8_from_locale(const gchar *locale_text);
 
 gchar *
 utils_get_home_dir (void);
+
+gchar *
+utils_tooltip_from_uri (const gchar *uri);
