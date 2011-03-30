@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <assert.h>
 #include <gtk/gtk.h>
 
 #include <deadbeef/deadbeef.h>
@@ -36,7 +37,6 @@
 #include "support.h"
 #include "utils.h"
 //#include <plugins/artwork/artwork.h>
-
 
 //#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
 #define trace(fmt,...)
@@ -62,7 +62,9 @@ DB_functions_t *deadbeef;
 //static DB_artwork_plugin_t *artwork_plugin;
 static ddb_gtkui_t *gtkui_plugin;
 
-static GtkWidget * create_sidebar (void);
+static void filebrowser_startup (void);
+static void filebrowser_shutdown (void);
+static void create_sidebar (void);
 static void treebrowser_chroot (gchar *directory);
 static gboolean treebrowser_browse (gchar *directory, gpointer parent);
 static void treebrowser_bookmarks_set_state (void);
@@ -91,11 +93,12 @@ static gboolean             CONFIG_SHOW_ICONS           = TRUE;
 static gint                 CONFIG_WIDTH                = 200;
 static const gchar *        CONFIG_COVERART             = NULL;
 
-static GtkWidget            *sidebar;
 static GtkWidget            *mainmenuitem;
+static GtkWidget            *vbox_playlist;
+static GtkWidget            *hbox_all;
 static GtkWidget            *treeview;
 static GtkTreeStore         *treestore                  = NULL;
-static GtkWidget            *sidebar_vbox;
+static GtkWidget            *sidebar_vbox               = NULL;
 static GtkWidget            *sidebar_vbox_bars;
 static GtkWidget            *addressbar;
 static gchar                *addressbar_last_address    = NULL;
@@ -145,41 +148,51 @@ create_autofilter ()
     trace("autofilter: %s\n", known_extensions);
 }
 
+static void
+on_menu_toggle (GtkMenuItem *menuitem, gpointer *user_data)
+{
+    CONFIG_HIDDEN = ! gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
+
+    if (CONFIG_HIDDEN)
+        gtk_widget_hide (sidebar_vbox);
+    else
+        gtk_widget_show (sidebar_vbox);
+}
+
 static int
 filebrowser_create_interface (void)
 {
-    trace("creating sidebar\n");
-    sidebar = create_sidebar ();
-    if (!sidebar)
+    trace("create sidebar\n");
+    create_sidebar ();
+    if (!sidebar_vbox)
         return -1;
 
-    gtk_widget_set_size_request (sidebar, CONFIG_WIDTH, -1);
+    gtk_widget_set_size_request (sidebar_vbox, CONFIG_WIDTH, -1);
 
     /* Really dirty hack to include the sidebar in main GUI */
-    trace("modifiying interface\n");
+    trace("modify interface\n");
     GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
     GtkWidget *tabstrip = lookup_widget (gtkui_plugin->get_mainwin (), "tabstrip");
     GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "frame1");
 
-    GtkWidget *vbox_pl = gtk_vbox_new (FALSE, 0);
+    vbox_playlist = gtk_vbox_new (FALSE, 0);
     g_object_ref (tabstrip);    // prevent destruction of widget by removing from container
     g_object_ref (playlist);
     gtk_container_remove (GTK_CONTAINER (mainbox), tabstrip);
     gtk_container_remove (GTK_CONTAINER (mainbox), playlist);
-    gtk_box_pack_start (GTK_BOX (vbox_pl), tabstrip, FALSE, TRUE, 0);
-    gtk_box_pack_start (GTK_BOX (vbox_pl), playlist, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (vbox_playlist), tabstrip, FALSE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (vbox_playlist), playlist, TRUE, TRUE, 0);
     g_object_unref (tabstrip);
     g_object_unref (playlist);
 
-    GtkWidget *hbox = gtk_hpaned_new ();
-    gtk_paned_pack1 (GTK_PANED (hbox), sidebar, FALSE, TRUE);
-    gtk_paned_pack2 (GTK_PANED (hbox), vbox_pl, TRUE, TRUE);
+    hbox_all = gtk_hpaned_new ();
+    gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
+    gtk_paned_pack2 (GTK_PANED (hbox_all), vbox_playlist, TRUE, TRUE);
 
-    gtk_container_add (GTK_CONTAINER (mainbox), hbox);
-    gtk_box_reorder_child (GTK_BOX (mainbox), hbox, 2);
+    gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
+    gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
 
-    trace("show\n");
-    gtk_widget_show_all (hbox);
+    gtk_widget_show_all (hbox_all);
 
     filebrowser_setup_dragdrop ();
 
@@ -192,29 +205,64 @@ filebrowser_restore_interface (void)
     // save current width of sidebar
     if (CONFIG_ENABLED && ! CONFIG_HIDDEN && ! pending_disable) {
         GtkAllocation alloc;
-        gtk_widget_get_allocation (sidebar, &alloc);
+        gtk_widget_get_allocation (sidebar_vbox, &alloc);
         CONFIG_WIDTH = alloc.width;
     }
 
-    // restore old interface
-    ///// TODO: Add restore, needed when plugin is disabled from settings dialog /////
+    trace("remove sidebar\n");
+    if (!sidebar_vbox)
+        return -1;
+
+    /* Really dirty hack to include the sidebar in main GUI */
+    trace("modify interface\n");
+    GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
+    GtkWidget *tabstrip = lookup_widget (gtkui_plugin->get_mainwin (), "tabstrip");
+    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "frame1");
+
+    gtk_widget_hide (mainbox);
+
+    g_object_ref (tabstrip);    // prevent destruction of widget by removing from container
+    g_object_ref (playlist);
+    gtk_container_remove (GTK_CONTAINER (vbox_playlist), tabstrip);
+    gtk_container_remove (GTK_CONTAINER (vbox_playlist), playlist);
+    gtk_box_pack_start (GTK_BOX (mainbox), tabstrip, FALSE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (mainbox), playlist, TRUE, TRUE, 0);
+    gtk_box_reorder_child (GTK_BOX (mainbox), tabstrip, 2);
+    gtk_box_reorder_child (GTK_BOX (mainbox), playlist, 3);
+    g_object_unref (tabstrip);
+    g_object_unref (playlist);
+
+    gtk_container_remove (GTK_CONTAINER (hbox_all), sidebar_vbox);
+    gtk_container_remove (GTK_CONTAINER (hbox_all), vbox_playlist);
+    gtk_container_remove (GTK_CONTAINER (mainbox), hbox_all);
+
+    gtk_widget_show_all (mainbox);
+
+    sidebar_vbox = NULL;
 
     return 0;
 }
 
-static void
-on_menu_toggle (GtkMenuItem *menuitem, gpointer *user_data)
-{
-    CONFIG_HIDDEN = ! gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (menuitem));
 
-    if (CONFIG_HIDDEN)
-        gtk_widget_hide (sidebar);
-    else
-        gtk_widget_show (sidebar);
+static int
+filebrowser_create_menu (void)
+{
+    trace("create menu entry\n");
+    GtkWidget *viewmenu = lookup_widget (gtkui_plugin->get_mainwin (), "View_menu");
+
+    mainmenuitem = gtk_check_menu_item_new_with_mnemonic (_("_Filebrowser"));
+    gtk_container_add (GTK_CONTAINER (viewmenu), mainmenuitem);
+    gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM (mainmenuitem), ! CONFIG_HIDDEN);
+
+    gtk_widget_show (mainmenuitem);
+    g_signal_connect (mainmenuitem, "activate", G_CALLBACK (on_menu_toggle), NULL);
+
+    return 0;
 }
 
 gboolean
 filebrowser_update (void *ctx) {
+    trace("update treeview\n");
     treebrowser_chroot (NULL);  // update treeview
 
     /* This function MUST return false because it's called from g_idle_add() */
@@ -224,31 +272,7 @@ filebrowser_update (void *ctx) {
 static void
 filebrowser_save_config (void)
 {
-    trace("saving settings: \n"
-        "enabled:           %d \n"
-        "hidden:            %d \n"
-        "defaultpath:       %s \n"
-        "show_hidden:       %d \n"
-        "filter_enabled:    %d \n"
-        "filter:            %s \n"
-        "filter_auto:       %d \n"
-        "show_bookmarks:    %d \n"
-        "show_icons:        %d \n"
-        "width:             %d \n"
-        "coverart:          %s \n",
-        CONFIG_ENABLED,
-        CONFIG_HIDDEN,
-        CONFIG_DEFAULT_PATH,
-        CONFIG_SHOW_HIDDEN_FILES,
-        CONFIG_FILTER_ENABLED,
-        CONFIG_FILTER,
-        CONFIG_FILTER_AUTO,
-        CONFIG_SHOW_BOOKMARKS,
-        CONFIG_SHOW_ICONS,
-        CONFIG_WIDTH,
-        CONFIG_COVERART
-        );
-
+    trace("save config\n");
     deadbeef->conf_set_int (CONFSTR_FB_ENABLED,             CONFIG_ENABLED);
     deadbeef->conf_set_int (CONFSTR_FB_HIDDEN,              CONFIG_HIDDEN);
     deadbeef->conf_set_int (CONFSTR_FB_SHOW_HIDDEN_FILES,   CONFIG_SHOW_HIDDEN_FILES);
@@ -269,6 +293,7 @@ filebrowser_save_config (void)
 static void
 filebrowser_load_config (void)
 {
+    trace("load config\n");
     if (CONFIG_DEFAULT_PATH)
         g_free ((gchar*) CONFIG_DEFAULT_PATH);
     if (CONFIG_FILTER)
@@ -288,31 +313,6 @@ filebrowser_load_config (void)
     CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_DEFAULT_PATH,        CONFSTR_FB_DEFAULT_PATH_DEFAULT));
     CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_FILTER,              CONFSTR_FB_FILTER_DEFAULT));
     CONFIG_COVERART             = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_COVERART,            CONFSTR_FB_COVERART_DEFAULT));
-
-    trace("loaded settings: \n"
-        "enabled:           %d \n"
-        "hidden:            %d \n"
-        "defaultpath:       %s \n"
-        "show_hidden:       %d \n"
-        "filter_enabled:    %d \n"
-        "filter:            %s \n"
-        "filter_auto:       %d \n"
-        "show_bookmarks:    %d \n"
-        "show_icons:        %d \n"
-        "width:             %d \n"
-        "coverart:          %s \n",
-        CONFIG_ENABLED,
-        CONFIG_HIDDEN,
-        CONFIG_DEFAULT_PATH,
-        CONFIG_SHOW_HIDDEN_FILES,
-        CONFIG_FILTER_ENABLED,
-        CONFIG_FILTER,
-        CONFIG_FILTER_AUTO,
-        CONFIG_SHOW_BOOKMARKS,
-        CONFIG_SHOW_ICONS,
-        CONFIG_WIDTH,
-        CONFIG_COVERART
-        );
 }
 
 static int
@@ -334,7 +334,7 @@ on_config_changed (DB_event_t *ev, uintptr_t data)
 
     filebrowser_load_config ();
 
-    trace("new settings: \n"
+    trace("config changed - new settings: \n"
         "enabled:           %d \n"
         "hidden:            %d \n"
         "defaultpath:       %s \n"
@@ -359,32 +359,26 @@ on_config_changed (DB_event_t *ev, uintptr_t data)
         CONFIG_COVERART
         );
 
-    //// TODO: Restore interface on disable
     if (enabled != CONFIG_ENABLED) {
-        //// FIXME: Dialog causes freeze - why??
-        /*
-        GtkWidget *dialog = gtk_message_dialog_new (NULL,
-                        0, //GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                        GTK_MESSAGE_INFO,
-                        GTK_BUTTONS_OK,
-                        "DeaDBeeF has to be restarted to fully enable/disable\n"
-                        "the Filebrowser plugin.\n");
-        gtk_dialog_run (GTK_DIALOG (dialog));
-        gtk_widget_destroy (dialog);
-        gtk_widget_hide (sidebar);
-        */
-        pending_disable = ! enabled;
+        if (CONFIG_ENABLED)
+            filebrowser_startup ();
+        else
+            filebrowser_shutdown ();
+        return 0;
     }
+
+    if (! CONFIG_ENABLED)
+        return 0;
 
     if (hidden != CONFIG_HIDDEN) {
         if (CONFIG_HIDDEN)
-            gtk_widget_hide (sidebar);
+            gtk_widget_hide (sidebar_vbox);
         else
-            gtk_widget_show (sidebar);
+            gtk_widget_show (sidebar_vbox);
     }
 
     if (width != CONFIG_WIDTH)
-        gtk_widget_set_size_request (sidebar, CONFIG_WIDTH, -1);
+        gtk_widget_set_size_request (sidebar_vbox, CONFIG_WIDTH, -1);
 
     if ((show_hidden != CONFIG_SHOW_HIDDEN_FILES) ||
             (filter_enabled != CONFIG_FILTER_ENABLED) ||
@@ -419,22 +413,6 @@ on_config_changed (DB_event_t *ev, uintptr_t data)
     return 0;
 }
 
-static int
-filebrowser_create_menu (void)
-{
-    trace("creating menu entry\n");
-    GtkWidget *viewmenu = lookup_widget (gtkui_plugin->get_mainwin (), "View_menu");
-
-    mainmenuitem = gtk_check_menu_item_new_with_mnemonic (_("_Filebrowser"));
-    gtk_container_add (GTK_CONTAINER (viewmenu), mainmenuitem);
-    gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM (mainmenuitem), ! CONFIG_HIDDEN);
-
-    gtk_widget_show (mainmenuitem);
-    g_signal_connect (mainmenuitem, "activate", G_CALLBACK (on_menu_toggle), NULL);
-
-    return 0;
-}
-
 int
 filebrowser_start (void)
 {
@@ -460,16 +438,33 @@ filebrowser_stop (void)
     return 0;
 }
 
-gboolean
-filebrowser_init (void *ctx) {
-    if (CONFIG_ENABLED) {
-        filebrowser_create_interface ();
-        filebrowser_create_menu ();
-        if (CONFIG_HIDDEN)
-            gtk_widget_hide (sidebar);
+static void
+filebrowser_startup (void)
+{
+    trace("startup\n");
+    filebrowser_create_interface ();
+    filebrowser_create_menu ();
+    if (CONFIG_HIDDEN)
+        gtk_widget_hide (sidebar_vbox);
 
-        plugin_init ();
-    }
+    plugin_init ();
+}
+
+static void
+filebrowser_shutdown (void)
+{
+    trace("shutdown\n");
+    filebrowser_restore_interface ();
+    if (mainmenuitem)
+        gtk_widget_destroy (mainmenuitem);
+
+    plugin_cleanup ();
+}
+
+static gboolean
+filebrowser_init (void *ctx) {
+    if (CONFIG_ENABLED)
+        filebrowser_startup ();
 
     deadbeef->ev_subscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED,
                     DB_CALLBACK (on_config_changed), 0);
@@ -498,10 +493,10 @@ filebrowser_disconnect (void)
     trace("disconnect\n");
     deadbeef->ev_unsubscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED,
                     DB_CALLBACK (on_config_changed), 0);
-    filebrowser_restore_interface ();
 
     trace("cleanup\n");
-    plugin_cleanup ();
+    if (CONFIG_ENABLED)
+        plugin_cleanup ();
 
     //artwork_plugin = NULL;
     gtkui_plugin = NULL;
@@ -1137,18 +1132,6 @@ on_menu_go_up (GtkMenuItem *menuitem, gpointer *user_data)
 }
 
 static void
-on_menu_go_home (GtkMenuItem *menuitem, gpointer *user_data)
-{
-    on_button_go_home ();
-}
-
-static void
-on_menu_go_root (GtkMenuItem *menuitem, gpointer *user_data)
-{
-    on_button_go_root ();
-}
-
-static void
 on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data)
 {
     GtkTreeSelection    *selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (treeview));
@@ -1597,9 +1580,12 @@ create_view_and_model ()
     return view;
 }
 
-static GtkWidget *
+static void
 create_sidebar ()
 {
+    if (sidebar_vbox)
+        return;
+
     GtkWidget           *scrollwin;
     GtkWidget           *toolbar;
     GtkWidget           *wid, *button_add;
@@ -1670,15 +1656,13 @@ create_sidebar ()
     g_signal_connect (treeview,     "row-expanded",         G_CALLBACK (on_treeview_row_expanded),      NULL);
     g_signal_connect (addressbar,   "activate",             G_CALLBACK (on_addressbar_activate),        NULL);
 
-    gtk_widget_show_all(sidebar_vbox);
-
-    return sidebar_vbox;
+    gtk_widget_show_all (sidebar_vbox);
 }
 
 static void
 plugin_init ()
 {
-    trace ("init");
+    trace ("init\n");
     create_autofilter ();
     expanded_rows = g_slist_alloc ();
     treebrowser_chroot (NULL);
@@ -1687,11 +1671,15 @@ plugin_init ()
 static void
 plugin_cleanup ()
 {
-    trace ("cleanup");
+    trace ("cleanup\n");
     treeview_clear_expanded ();
+    g_slist_free (expanded_rows);
     g_free (addressbar_last_address);
     g_free (known_extensions);
-    gtk_widget_destroy (sidebar_vbox);
+
+    expanded_rows = NULL;
+    addressbar_last_address = NULL;
+    known_extensions = NULL;
 }
 
 static void
