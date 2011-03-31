@@ -2,10 +2,11 @@
 #include <gtk/gtk.h>
 
 /* Helper macros */
-#define foreach_slist_free(node, list)  for (node = list, list = NULL; g_slist_free_1(list), node != NULL; list = node, node = node->next)
-#define foreach_dir(filename, dir)      for ((filename) = g_dir_read_name(dir); (filename) != NULL; (filename) = g_dir_read_name(dir))
-#define NZV(ptr)                        (G_LIKELY((ptr)) && G_LIKELY((ptr)[0]))
-#define setptr(ptr, result)             { gpointer setptr_tmp = ptr; ptr = result; g_free(setptr_tmp); }
+#define foreach_slist_free(node,list)               for (node = list, list = NULL; g_slist_free_1(list), node != NULL; list = node, node = node->next)
+#define foreach_dir(filename,dir)                   for ((filename) = g_dir_read_name(dir); (filename) != NULL; (filename) = g_dir_read_name(dir))
+#define NZV(ptr)                                    (G_LIKELY((ptr)) && G_LIKELY((ptr)[0]))
+#define setptr(ptr,result)                          { gpointer setptr_tmp = ptr; ptr = result; g_free(setptr_tmp); }
+#define GLADE_HOOKUP_OBJECT(component,widget,name)  g_object_set_data_full (G_OBJECT (component), name, gtk_widget_ref (widget), (GDestroyNotify) gtk_widget_unref)
 
 
 GdkPixbuf *

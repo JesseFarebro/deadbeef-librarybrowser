@@ -127,6 +127,24 @@ filebrowser_setup_dragdrop (void)
 }
 
 static void
+update_gtkui_listview_headers (void)
+{
+    GtkWidget *headers_menuitem = lookup_widget (gtkui_plugin->get_mainwin (), "view_headers");
+    gboolean menu_enabled = gtk_check_menu_item_get_active (GTK_CHECK_MENU_ITEM (headers_menuitem));
+    gboolean conf_enabled = deadbeef->conf_get_int ("gtkui.headers.visible", 1);
+
+    /* Nasty workaround: emit the "headers visible" menuitem signal once or
+     * twice to update the playlist view
+     * TODO: Would be better to have direct acces to the ddblistview instance.
+     */
+    if (! conf_enabled) {
+        if (! menu_enabled)
+            g_signal_emit_by_name (headers_menuitem, "activate");
+        g_signal_emit_by_name (headers_menuitem, "activate");
+    }
+}
+
+static void
 create_autofilter ()
 {
     /* This uses GString to dynamically append all known extensions into a string */
@@ -190,6 +208,7 @@ filebrowser_create_interface (void)
     gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
 
     gtk_widget_show_all (hbox_all);
+    update_gtkui_listview_headers ();
 
     filebrowser_setup_dragdrop ();
 
@@ -234,6 +253,7 @@ filebrowser_restore_interface (void)
     gtk_container_remove (GTK_CONTAINER (mainbox), hbox_all);
 
     gtk_widget_show_all (mainbox);
+    update_gtkui_listview_headers ();
 
     sidebar_vbox = NULL;
 
