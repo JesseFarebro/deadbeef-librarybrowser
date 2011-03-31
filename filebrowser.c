@@ -23,13 +23,10 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
-#include <assert.h>
 #include <gtk/gtk.h>
 
 #include <deadbeef/deadbeef.h>
@@ -505,7 +502,7 @@ filebrowser_disconnect (void)
 }
 
 static const char settings_dlg[] =
-    "property \"Enable (needs restart)\"        checkbox "              CONFSTR_FB_ENABLED              " 1 ;\n"
+    "property \"Enable\"                        checkbox "              CONFSTR_FB_ENABLED              " 1 ;\n"
     "property \"Default path: \"                entry "                 CONFSTR_FB_DEFAULT_PATH         " \"" CONFSTR_FB_DEFAULT_PATH_DEFAULT     "\" ;\n"
     "property \"Filter files by extension\"     checkbox "              CONFSTR_FB_FILTER_ENABLED       " 1 ;\n"
     "property \"Shown files: \"                 entry "                 CONFSTR_FB_FILTER               " \"" CONFSTR_FB_FILTER_DEFAULT            "\" ;\n"
@@ -554,7 +551,7 @@ static DB_misc_t plugin = {
 };
 
 DB_plugin_t *
-filebrowser_load (DB_functions_t *ddb) {
+ddb_misc_filebrowser_load (DB_functions_t *ddb) {
     deadbeef = ddb;
     return &plugin.plugin;
 }
