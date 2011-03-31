@@ -5,7 +5,7 @@ AM_INIT_AUTOMAKE()
 dnl Override $PACKAGE to make $pkgXdir use deadbeef search path
 PACKAGE=deadbeef
 
-AM_CONFIG_HEADER(config.h)
+#AM_CONFIG_HEADER(config.h)
 
 AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC
