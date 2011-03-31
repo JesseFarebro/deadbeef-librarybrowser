@@ -17,27 +17,38 @@ Check out the player itself here:
 1. Compiling etc.
 
 * To build the plugin from source, you'll need the deadbeef and GTK2 headers
-  (deadbeef-dev, libgtk2.0-dev)
+  (deadbeef-dev, libgtk2.0-dev).
 
 * To get the sources from git, use the following commands:
     First donwload:   git clone git://deadbeef-fb.git.sourceforge.net/gitroot/deadbeef-fb/deadbeef-fb
     Update the tree:  git pull
 
-* Just type "make" to build the plugin as shared library
+* Then just follow the instructions in the INSTALL file.
+  Basically, you need to run
+    ./autogen.sh
+    ./configure
+    make
+  to compile the sources. After that, the plugin is ready for install.
 
 
 ==========================================================
 
 2. Install
 
-* Just run the "install.sh" script - it will install the plugin into your
-  home directory
+* You can either use one of the provided install scripts, or use
+  "make install" as mentioned in the INSTALL file.
 
-* Alternatively, maually copy the file "filebrowser.so" file into the
-  directory "$HOME/.local/deadbeef/lib/"
+* To quickly install the plugin into your home directory, use the
+  "userinstall.sh" script. You don't need to be root to do that!
+  It will put the plugin file into $HOME/.local/lib/deadbeef/.
 
-* If you compiled from source, you can also just type "make install", which
-  will install the plugin into the PREFIX directory (default: /usr)
+* To quickly install the plugin into your system directory, use the
+  "quickinstall.sh" script.
+  It will put the plugin file into /usr/local/lib/deadbeef/.
+
+* If you want to install the plugin into your system directory (e.g. /usr),
+  it's better to compile the program and use "make install", as this
+  also takes care of other files like translations!
 
 
 ==========================================================
@@ -45,4 +56,4 @@ Check out the player itself here:
 3. Problems?
 
 * If DeaDBeeF stops working after you've installed the plugin, just
-  remove the .so file from the directory described above
+  remove the .so file from the appropriate directory mentioned above.
