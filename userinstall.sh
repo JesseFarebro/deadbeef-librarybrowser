@@ -1,4 +1,4 @@
-w#!/bin/sh
+#!/bin/sh
 
 /bin/mkdir -p ${HOME}/.local/lib/deadbeef
 
