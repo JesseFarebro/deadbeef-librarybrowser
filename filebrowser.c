@@ -318,6 +318,8 @@ filebrowser_load_config (void)
     if (CONFIG_COVERART)
         g_free ((gchar*) CONFIG_COVERART);
 
+    deadbeef->conf_lock ();
+
     CONFIG_ENABLED              = deadbeef->conf_get_int (CONFSTR_FB_ENABLED,             TRUE);
     CONFIG_HIDDEN               = deadbeef->conf_get_int (CONFSTR_FB_HIDDEN,              FALSE);
     CONFIG_SHOW_HIDDEN_FILES    = deadbeef->conf_get_int (CONFSTR_FB_SHOW_HIDDEN_FILES,   FALSE);
@@ -327,31 +329,13 @@ filebrowser_load_config (void)
     CONFIG_SHOW_ICONS           = deadbeef->conf_get_int (CONFSTR_FB_SHOW_ICONS,          TRUE);
     CONFIG_WIDTH                = deadbeef->conf_get_int (CONFSTR_FB_WIDTH,               200);
 
-    CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_DEFAULT_PATH,        CONFSTR_FB_DEFAULT_PATH_DEFAULT));
-    CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_FILTER,              CONFSTR_FB_FILTER_DEFAULT));
-    CONFIG_COVERART             = g_strdup (deadbeef->conf_get_str (CONFSTR_FB_COVERART,            CONFSTR_FB_COVERART_DEFAULT));
-}
+    CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_DEFAULT_PATH,   CONFSTR_FB_DEFAULT_PATH_DEFAULT));
+    CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_FILTER,         CONFSTR_FB_FILTER_DEFAULT));
+    CONFIG_COVERART             = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COVERART,       CONFSTR_FB_COVERART_DEFAULT));
 
-static int
-on_config_changed (DB_event_t *ev, uintptr_t data)
-{
-    gboolean    enabled         = CONFIG_ENABLED;
-    gboolean    hidden          = CONFIG_HIDDEN;
-    gchar *     default_path    = g_strdup (CONFIG_DEFAULT_PATH);
-    gboolean    show_hidden     = CONFIG_SHOW_HIDDEN_FILES;
-    gboolean    filter_enabled  = CONFIG_FILTER_ENABLED;
-    gchar *     filter          = g_strdup (CONFIG_FILTER);
-    gboolean    filter_auto     = CONFIG_FILTER_AUTO;
-    gboolean    show_bookmarks  = CONFIG_SHOW_BOOKMARKS;
-    gboolean    show_icons      = CONFIG_SHOW_ICONS;
-    gint        width           = CONFIG_WIDTH;
-    gchar *     coverart        = g_strdup (CONFIG_COVERART);
+    deadbeef->conf_unlock ();
 
-    gboolean do_update = FALSE;
-
-    filebrowser_load_config ();
-
-    trace("config changed - new settings: \n"
+    trace("config loaded - new settings: \n"
         "enabled:           %d \n"
         "hidden:            %d \n"
         "defaultpath:       %s \n"
@@ -375,57 +359,76 @@ on_config_changed (DB_event_t *ev, uintptr_t data)
         CONFIG_WIDTH,
         CONFIG_COVERART
         );
+}
+
+static int
+on_config_changed (DB_event_t *ev, uintptr_t data)
+{
+    gboolean    enabled         = CONFIG_ENABLED;
+    gboolean    hidden          = CONFIG_HIDDEN;
+    gboolean    show_hidden     = CONFIG_SHOW_HIDDEN_FILES;
+    gboolean    filter_enabled  = CONFIG_FILTER_ENABLED;
+    gboolean    filter_auto     = CONFIG_FILTER_AUTO;
+    gboolean    show_bookmarks  = CONFIG_SHOW_BOOKMARKS;
+    gboolean    show_icons      = CONFIG_SHOW_ICONS;
+    gint        width           = CONFIG_WIDTH;
+
+    gchar *     default_path    = g_strdup (CONFIG_DEFAULT_PATH);
+    gchar *     filter          = g_strdup (CONFIG_FILTER);
+    gchar *     coverart        = g_strdup (CONFIG_COVERART);
+
+    filebrowser_load_config ();
 
     if (enabled != CONFIG_ENABLED) {
         if (CONFIG_ENABLED)
             filebrowser_startup ();
         else
             filebrowser_shutdown ();
-        return 0;
     }
 
-    if (! CONFIG_ENABLED)
-        return 0;
+    if (CONFIG_ENABLED) {
+        gboolean do_update = FALSE;
 
-    if (hidden != CONFIG_HIDDEN) {
-        if (CONFIG_HIDDEN)
-            gtk_widget_hide (sidebar_vbox);
-        else
-            gtk_widget_show (sidebar_vbox);
-    }
-
-    if (width != CONFIG_WIDTH)
-        gtk_widget_set_size_request (sidebar_vbox, CONFIG_WIDTH, -1);
-
-    if ((show_hidden != CONFIG_SHOW_HIDDEN_FILES) ||
-            (filter_enabled != CONFIG_FILTER_ENABLED) ||
-            (filter_enabled && (filter_auto != CONFIG_FILTER_AUTO)) ||
-            (show_bookmarks != CONFIG_SHOW_BOOKMARKS) ||
-            (show_icons != CONFIG_SHOW_ICONS))
-        do_update = TRUE;
-
-    if (CONFIG_FILTER_ENABLED) {
-        if (CONFIG_FILTER_AUTO) {
-            gchar *autofilter = g_strdup (known_extensions);
-            create_autofilter ();
-            if (! utils_str_equal (autofilter, known_extensions))
-                do_update = TRUE;
-            g_free (autofilter);
+        if (hidden != CONFIG_HIDDEN) {
+            if (CONFIG_HIDDEN)
+                gtk_widget_hide (sidebar_vbox);
+            else
+                gtk_widget_show (sidebar_vbox);
         }
-        else
-            if (! utils_str_equal (filter, CONFIG_FILTER))
-                do_update = TRUE;
-    }
 
-    if (! utils_str_equal (coverart, CONFIG_COVERART))
-        do_update = TRUE;
+        if (width != CONFIG_WIDTH)
+            gtk_widget_set_size_request (sidebar_vbox, CONFIG_WIDTH, -1);
+
+        if ((show_hidden != CONFIG_SHOW_HIDDEN_FILES) ||
+                (filter_enabled != CONFIG_FILTER_ENABLED) ||
+                (filter_enabled && (filter_auto != CONFIG_FILTER_AUTO)) ||
+                (show_bookmarks != CONFIG_SHOW_BOOKMARKS) ||
+                (show_icons != CONFIG_SHOW_ICONS))
+            do_update = TRUE;
+
+        if (CONFIG_FILTER_ENABLED) {
+            if (CONFIG_FILTER_AUTO) {
+                gchar *autofilter = g_strdup (known_extensions);
+                create_autofilter ();
+                if (! utils_str_equal (autofilter, known_extensions))
+                    do_update = TRUE;
+                g_free (autofilter);
+            }
+            else
+                if (! utils_str_equal (filter, CONFIG_FILTER))
+                    do_update = TRUE;
+        }
+
+        if (! utils_str_equal (coverart, CONFIG_COVERART))
+            do_update = TRUE;
+
+        if (do_update)
+            g_idle_add (filebrowser_update, NULL);
+    }
 
     g_free (default_path);
     g_free (filter);
     g_free (coverart);
-
-    if (do_update && CONFIG_ENABLED)
-        g_idle_add (filebrowser_update, NULL);
 
     return 0;
 }
