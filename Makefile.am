@@ -12,7 +12,7 @@
 #       intltool-update \
 #       po/.intltool-merge-cache
 
-filebrowser_SOURCES =   filebrowser.c \
+filebrowser_SOURCES =   filebrowser.c filebrowser.h \
                         support.c support.h \
                         utils.c utils.h
 
@@ -26,7 +26,7 @@ endif
 ddb_misc_filebrowser_la_SOURCES = $(filebrowser_SOURCES)
 ddb_misc_filebrowser_la_LDFLAGS = -module
 ddb_misc_filebrowser_la_LIBADD  = $(LDADD) $(GTK_DEPS_LIBS)
-ddb_misc_filebrowser_la_CFLAGS  = -std=c99 $(GTK_DEPS_CFLAGS)
+ddb_misc_filebrowser_la_CFLAGS  = -std=c99 $(GTK_DEPS_CFLAGS) -Wall
 
 # fallback lib
 if STATICLINK

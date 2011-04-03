@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_INIT([deadbeef-fb],[devel])
 AM_INIT_AUTOMAKE()
 
-dnl Override $PACKAGE to make $pkgXdir use deadbeef search path
+dnl Override $PACKAGE to make $pkglibdir use deadbeef search path
 PACKAGE=deadbeef
 
 #AM_CONFIG_HEADER(config.h)
@@ -21,8 +21,13 @@ PKG_PROG_PKG_CONFIG
 #GETTEXT_PACKAGE=deadbeef-fb
 #AC_SUBST(GETTEXT_PACKAGE)
 
-test "x$prefix" = xNONE && prefix=$ac_default_prefix
-AC_DEFINE_UNQUOTED(LOCALEDIR, "${prefix}/${DATADIRNAME}/locale", [Name of gettext locale directory])
+CFLAGS="$CFLAGS -Wall"
+if test "x$EXTRA_CFLAGS" != "x" ; then
+  CFLAGS="$CFLAGS $EXTRA_CFLAGS"
+fi
+
+test "x$PREFIX" = xNONE && PREFIX=$ac_default_prefix
+AC_DEFINE_UNQUOTED(LOCALEDIR, "${PREFIX}/${DATADIRNAME}/locale", [Name of gettext locale directory])
 
 case "$host" in
   i386-*-* | i486-*-* | i586-*-* | i686-*-* | i86pc-*-*)
