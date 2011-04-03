@@ -1689,11 +1689,11 @@ static const char settings_dlg[] =
     "property \"Shown files: \"                 entry "                 CONFSTR_FB_FILTER               " \"" DEFAULT_FB_FILTER         "\" ;\n"
     "property \"Use auto-filter instead "
         "(based on active decoder plugins)\"    checkbox "              CONFSTR_FB_FILTER_AUTO           " 1 ;\n"
-    "property \"Show hidden files\"             checkbox "              CONFSTR_FB_SHOW_HIDDEN_FILES    " 0 ;\n"
-    "property \"Show bookmarks\"                checkbox "              CONFSTR_FB_SHOW_BOOKMARKS       " 1 ;\n"
-    "property \"Show file icons\"               checkbox "              CONFSTR_FB_SHOW_ICONS           " 1 ;\n"
+    "property \"Show file icons / coverart\"    checkbox "              CONFSTR_FB_SHOW_ICONS           " 1 ;\n"
     "property \"Allowed coverart files: \"      entry "                 CONFSTR_FB_COVERART             " \"" DEFAULT_FB_COVERART       "\" ;\n"
     "property \"Coverart icon size: \"          spinbtn[16,32,2] "      CONFSTR_FB_COVERART_SIZE        " 24 ;\n"
+    "property \"Show hidden files\"             checkbox "              CONFSTR_FB_SHOW_HIDDEN_FILES    " 0 ;\n"
+    "property \"Show bookmarks\"                checkbox "              CONFSTR_FB_SHOW_BOOKMARKS       " 1 ;\n"
     "property \"Sidebar width: \"               spinbtn[150,300,1] "    CONFSTR_FB_WIDTH                " 200 ;\n"
 ;
 
