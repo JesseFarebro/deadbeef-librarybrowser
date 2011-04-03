@@ -32,3 +32,9 @@ utils_get_home_dir (void);
 
 gchar *
 utils_tooltip_from_uri (const gchar *uri);
+
+gchar *
+utils_make_cache_path (const gchar *uri, gint imgsize);
+
+gint
+utils_check_dir (const gchar *dir, mode_t mode);

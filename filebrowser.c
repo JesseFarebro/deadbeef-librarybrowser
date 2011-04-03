@@ -23,6 +23,8 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +35,6 @@
 #include "filebrowser.h"
 #include "support.h"
 #include "utils.h"
-//#include <plugins/artwork/artwork.h>
 
 //#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
 #define trace(fmt,...)
@@ -57,6 +58,7 @@ static gboolean             CONFIG_SHOW_BOOKMARKS;
 static gboolean             CONFIG_SHOW_ICONS;
 static gint                 CONFIG_WIDTH;
 static const gchar *        CONFIG_COVERART             = NULL;
+static gint                 CONFIG_COVERART_SIZE        = 24;
 
 /* Global variables */
 static DB_misc_t            plugin;
@@ -148,6 +150,7 @@ save_config (void)
     deadbeef->conf_set_int (CONFSTR_FB_SHOW_BOOKMARKS,      CONFIG_SHOW_BOOKMARKS);
     deadbeef->conf_set_int (CONFSTR_FB_SHOW_ICONS,          CONFIG_SHOW_ICONS);
     deadbeef->conf_set_int (CONFSTR_FB_WIDTH,               CONFIG_WIDTH);
+    deadbeef->conf_set_int (CONFSTR_FB_COVERART_SIZE,       CONFIG_COVERART_SIZE);
 
     if (CONFIG_DEFAULT_PATH)
         deadbeef->conf_set_str (CONFSTR_FB_DEFAULT_PATH,    CONFIG_DEFAULT_PATH);
@@ -178,6 +181,7 @@ load_config (void)
     CONFIG_SHOW_BOOKMARKS       = deadbeef->conf_get_int (CONFSTR_FB_SHOW_BOOKMARKS,      TRUE);
     CONFIG_SHOW_ICONS           = deadbeef->conf_get_int (CONFSTR_FB_SHOW_ICONS,          TRUE);
     CONFIG_WIDTH                = deadbeef->conf_get_int (CONFSTR_FB_WIDTH,               200);
+    CONFIG_COVERART_SIZE        = deadbeef->conf_get_int (CONFSTR_FB_COVERART_SIZE,       24);
 
     CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_DEFAULT_PATH,   DEFAULT_FB_DEFAULT_PATH));
     CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_FILTER,         DEFAULT_FB_FILTER));
@@ -196,7 +200,8 @@ load_config (void)
         "show_bookmarks:    %d \n"
         "show_icons:        %d \n"
         "width:             %d \n"
-        "coverart:          %s \n",
+        "coverart:          %s \n"
+        "coverart size:     %d \n",
         CONFIG_ENABLED,
         CONFIG_HIDDEN,
         CONFIG_DEFAULT_PATH,
@@ -207,7 +212,8 @@ load_config (void)
         CONFIG_SHOW_BOOKMARKS,
         CONFIG_SHOW_ICONS,
         CONFIG_WIDTH,
-        CONFIG_COVERART
+        CONFIG_COVERART,
+        CONFIG_COVERART_SIZE
         );
 }
 
@@ -259,6 +265,7 @@ on_config_changed (DB_event_t *ev, uintptr_t data)
     gboolean    show_bookmarks  = CONFIG_SHOW_BOOKMARKS;
     gboolean    show_icons      = CONFIG_SHOW_ICONS;
     gint        width           = CONFIG_WIDTH;
+    gint        coverart_size   = CONFIG_COVERART_SIZE;
 
     gchar *     default_path    = g_strdup (CONFIG_DEFAULT_PATH);
     gchar *     filter          = g_strdup (CONFIG_FILTER);
@@ -290,7 +297,8 @@ on_config_changed (DB_event_t *ev, uintptr_t data)
                 (filter_enabled != CONFIG_FILTER_ENABLED) ||
                 (filter_enabled && (filter_auto != CONFIG_FILTER_AUTO)) ||
                 (show_bookmarks != CONFIG_SHOW_BOOKMARKS) ||
-                (show_icons != CONFIG_SHOW_ICONS))
+                (show_icons != CONFIG_SHOW_ICONS) ||
+                (show_icons && (coverart_size != CONFIG_COVERART_SIZE)))
             do_update = TRUE;
 
         if (CONFIG_FILTER_ENABLED) {
@@ -768,7 +776,7 @@ check_hidden (const gchar *filename)
 //        return FALSE;
 
     gboolean is_hidden = (base_name[0] == '.');
-    g_free (base_name);
+    g_free ((gpointer) base_name);
 
     if ((! CONFIG_SHOW_HIDDEN_FILES) && is_hidden)
         return TRUE;
@@ -788,6 +796,44 @@ get_default_dir (void)
     return utils_get_home_dir ();
 }
 
+/* Try to get icon from cache, update cache if not found or original is newer */
+static GdkPixbuf *
+get_icon_from_cache (const gchar *uri, const gchar *coverart, gint imgsize)
+{
+    GdkPixbuf *icon = NULL;
+    gchar *iconfile  = g_strconcat (uri, G_DIR_SEPARATOR_S, coverart, NULL);
+    gchar *cachefile = utils_make_cache_path (uri, imgsize);
+
+    if (g_file_test (iconfile, G_FILE_TEST_EXISTS)) {
+        /* Check if original file was updated */
+        if (g_file_test (cachefile, G_FILE_TEST_EXISTS)) {
+            struct stat cache_stat, icon_stat;
+            stat (cachefile, &cache_stat);
+            stat (iconfile, &icon_stat);
+
+            if (icon_stat.st_mtime <= cache_stat.st_mtime) {
+                trace ("cached icon for %s\n", uri);
+                icon = gdk_pixbuf_new_from_file (cachefile, NULL);
+            }
+        }
+
+        if (! icon) {
+            trace ("creating new icon for %s\n", uri);
+            GError *err = NULL;
+            icon = gdk_pixbuf_new_from_file_at_size (iconfile, imgsize, imgsize, NULL);
+            if (! gdk_pixbuf_save (icon, cachefile, "png", &err, NULL)) {
+                fprintf (stderr, "Could not cache coverart image %s: %s\n", iconfile, err->message);
+                g_error_free (err);
+            }
+        }
+    }
+
+    g_free (cachefile);
+    g_free (iconfile);
+
+    return icon;
+}
+
 /* Get icon for selected URI - default icon or folder image */
 static GdkPixbuf *
 get_icon_for_uri (gchar *uri)
@@ -803,19 +849,15 @@ get_icon_for_uri (gchar *uri)
     /* Check for cover art in folder, otherwise use default icon */
     GdkPixbuf *icon = NULL;
     gchar **coverart = g_strsplit (CONFIG_COVERART, ";", 0);
-    for (gint i = 0; coverart[i]; i++) {
-        gchar *coverpath = g_strconcat (uri, G_DIR_SEPARATOR_S, coverart[i], NULL);
-        if (g_file_test (coverpath, G_FILE_TEST_EXISTS))
-            icon = gdk_pixbuf_new_from_file_at_size (coverpath,
-                            CONFIG_DIR_ICON_SIZE, CONFIG_DIR_ICON_SIZE, NULL);
-        g_free (coverpath);
+    for (gint i = 0; coverart[i] && ! icon; i++)
+        icon = get_icon_from_cache (uri, coverart[i], CONFIG_COVERART_SIZE);
+    g_strfreev (coverart);
 
-        if (icon)
-            return icon;
-    }
+    /* Fallback to default icon */
+    if (! icon)
+        icon =  utils_pixbuf_from_stock ("folder", CONFIG_DIR_ICON_SIZE);
 
-    // Fallback to default icon
-    return utils_pixbuf_from_stock ("folder", CONFIG_DIR_ICON_SIZE);
+    return icon;
 }
 
 /* Check if row defined by iter is expanded or not */
@@ -1620,8 +1662,6 @@ filebrowser_connect (void)
     if (! gtkui_plugin)
         return -1;
 
-    //artwork_plugin = (DB_artwork_plugin_t *) deadbeef->plug_get_for_id ("artwork");
-
     g_idle_add (filebrowser_init, NULL);
 
     return 0;
@@ -1639,22 +1679,21 @@ filebrowser_disconnect (void)
         plugin_cleanup ();
 
     gtkui_plugin = NULL;
-    //artwork_plugin = NULL;
-
     return 0;
 }
 
 static const char settings_dlg[] =
     "property \"Enable\"                        checkbox "              CONFSTR_FB_ENABLED              " 1 ;\n"
-    "property \"Default path: \"                entry "                 CONFSTR_FB_DEFAULT_PATH         " \"" DEFAULT_FB_DEFAULT_PATH     "\" ;\n"
+    "property \"Default path: \"                entry "                 CONFSTR_FB_DEFAULT_PATH         " \"" DEFAULT_FB_DEFAULT_PATH   "\" ;\n"
     "property \"Filter files by extension\"     checkbox "              CONFSTR_FB_FILTER_ENABLED       " 1 ;\n"
-    "property \"Shown files: \"                 entry "                 CONFSTR_FB_FILTER               " \"" DEFAULT_FB_FILTER            "\" ;\n"
+    "property \"Shown files: \"                 entry "                 CONFSTR_FB_FILTER               " \"" DEFAULT_FB_FILTER         "\" ;\n"
     "property \"Use auto-filter instead "
         "(based on active decoder plugins)\"    checkbox "              CONFSTR_FB_FILTER_AUTO           " 1 ;\n"
     "property \"Show hidden files\"             checkbox "              CONFSTR_FB_SHOW_HIDDEN_FILES    " 0 ;\n"
     "property \"Show bookmarks\"                checkbox "              CONFSTR_FB_SHOW_BOOKMARKS       " 1 ;\n"
     "property \"Show file icons\"               checkbox "              CONFSTR_FB_SHOW_ICONS           " 1 ;\n"
-    "property \"Allowed coverart files: \"      entry "                 CONFSTR_FB_COVERART             " \"" DEFAULT_FB_COVERART        "\" ;\n"
+    "property \"Allowed coverart files: \"      entry "                 CONFSTR_FB_COVERART             " \"" DEFAULT_FB_COVERART       "\" ;\n"
+    "property \"Coverart icon size: \"          spinbtn[16,32,2] "      CONFSTR_FB_COVERART_SIZE        " 24 ;\n"
     "property \"Sidebar width: \"               spinbtn[150,300,1] "    CONFSTR_FB_WIDTH                " 200 ;\n"
 ;
 

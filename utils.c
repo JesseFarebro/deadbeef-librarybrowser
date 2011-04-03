@@ -1,9 +1,13 @@
+/* UTILITY FUNCTIONS */
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <gtk/gtk.h>
 #include "utils.h"
 
-
-/* ------------------
- * UTILITY FUNCTIONS
- * ------------------ */
 
 /* Get pixbuf icon from current icon theme */
 GdkPixbuf *
@@ -16,7 +20,7 @@ utils_pixbuf_from_stock (const gchar *icon_name, gint size)
     return NULL;
 }
 
-/* Some utility functions */
+/* Check if two strings are exactly the same */
 gboolean
 utils_str_equal (const gchar *a, const gchar *b)
 {
@@ -33,6 +37,7 @@ utils_str_equal (const gchar *a, const gchar *b)
     return FALSE;
 }
 
+/* Compare two strings, ignoring case differences */
 gint
 utils_str_casecmp (const gchar *s1, const gchar *s2)
 {
@@ -71,6 +76,7 @@ utils_str_casecmp (const gchar *s1, const gchar *s2)
     return result;
 }
 
+/* Get list of filenames inside a directory */
 GSList *
 utils_get_file_list_full (const gchar *path, gboolean full_path, gboolean sort, GError **error)
 {
@@ -109,6 +115,7 @@ utils_get_file_list (const gchar *path, guint *length, GError **error)
     return list;
 }
 
+/* Convert text in local encoding to UTF8 */
 gchar *
 utils_get_utf8_from_locale(const gchar *locale_text)
 {
@@ -116,12 +123,13 @@ utils_get_utf8_from_locale(const gchar *locale_text)
 
     if (! locale_text)
         return NULL;
-    utf8_text = g_locale_to_utf8(locale_text, -1, NULL, NULL, NULL);
+    utf8_text = g_locale_to_utf8 (locale_text, -1, NULL, NULL, NULL);
     if (utf8_text == NULL)
-        utf8_text = g_strdup(locale_text);
+        utf8_text = g_strdup (locale_text);
     return utf8_text;
 }
 
+/* Get current home directory */
 gchar *
 utils_get_home_dir (void)
 {
@@ -131,14 +139,85 @@ utils_get_home_dir (void)
     return g_strdup (g_get_home_dir ());
 }
 
+/* Get URI tooltip from URI, escaping ampersands ('&') */
 gchar *
 utils_tooltip_from_uri (const gchar *uri)
 {
-    /* Tooltips can't have an ampersand '&' in them */
     if (! uri)
         return NULL;
     gchar **strings = g_strsplit (uri, "&", 0);
     gchar *result = g_strjoinv ("&amp;", strings);
     g_strfreev (strings);
     return result;
+}
+
+/* Get cache path for directory icon of URI */
+gchar *
+utils_make_cache_path (const gchar *uri, gint imgsize)
+{
+    /* Path for cached icon is constructed like this:
+     *     $XDG_CACHE_HOME/deadbeef-fb/icons/<imgsize>/<uri-without-separators>.png
+     * If $XDG_CACHE_HOME is undefined, $HOME/.cache/deadbeef-fb/ is used instead.
+     *
+     * Example: The coverart image
+     *     /home/user/Music/SomeArtist/Album01/cover.jpg
+     * will lead to the cached at
+     *     /home/user/.cache/deadbeef-fb/24/home_user_Music_SomeArtist_Album01.png
+     */
+    const gchar *cache = g_getenv ("XDG_CACHE_HOME");
+    GString *path;
+    gchar *cachedir, *fname;
+
+    path = g_string_sized_new (128);  // reasonable initial size
+    g_string_printf (path,
+                    cache ? "%s/deadbeef-fb/icons/%d/" : "%s/.cache/deadbeef-fb/icons/%d/",
+                    cache ? cache : g_getenv ("HOME"),
+                    imgsize);
+    cachedir = g_string_free (path, FALSE);
+
+    /* Create path if it doesn't exist already */
+    if (! g_file_test (cachedir, G_FILE_TEST_IS_DIR))
+        utils_check_dir (cachedir, 0755);
+
+    fname = g_strdup (uri);
+    for (gchar *p = fname+1; *p; p++) {
+        if ((*p == G_DIR_SEPARATOR_S[0]) || (*p == ' ')) {
+            *p = '_';
+        }
+    }
+
+    path = g_string_new (cachedir);
+    g_string_append_printf (path, "/%s.png", fname);
+    g_free (cachedir);
+
+    return g_string_free (path, FALSE);
+}
+
+/* Copied from  <deadbeef>/plugins/artwork/artwork.c  with few adjustments */
+gint
+utils_check_dir (const gchar *dir, mode_t mode)
+{
+    gchar *tmp = g_strdup (dir);
+    gchar *slash = tmp;
+    struct stat stat_buf;
+    do
+    {
+        slash = strstr (slash+1, "/");
+        if (slash)
+            *slash = 0;
+        if (-1 == stat (tmp, &stat_buf)) {
+            int errno = mkdir (tmp, mode);
+            if (0 != errno) {
+                fprintf (stderr, "Failed to create %s (%d)\n", tmp, errno);
+                g_free (tmp);
+                return 0;
+            }
+        }
+        if (slash)
+            *slash = '/';
+    }
+    while (slash);
+
+    g_free (tmp);
+    return 1;
 }
