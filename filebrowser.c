@@ -708,10 +708,23 @@ gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root)
 static void
 add_uri_to_playlist (gchar *uri, int plt)
 {
-    if (plt == PLT_CURRENT)
+    deadbeef->plt_lock ();
+
+    if (plt == PLT_CURRENT) {
         plt = deadbeef->plt_get_curr ();
-    else if (plt == PLT_NEW)
-        plt = deadbeef->plt_add (deadbeef->plt_get_count (), _("New Playlist"));
+    }
+    else if (plt == PLT_NEW) {
+        const gchar *title = _("New Playlist");
+        if (deadbeef->conf_get_int ("gtkui.name_playlist_from_folder", 0)) {
+            const gchar *folder = strrchr (uri, '/');
+            if (folder)
+                title = folder+1;
+        }
+        plt = deadbeef->plt_add (deadbeef->plt_get_count (), g_strdup(title));
+    }
+
+    if (plt < 0)
+        return;
 
     deadbeef->pl_add_files_begin (plt);
     if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
@@ -724,6 +737,7 @@ add_uri_to_playlist (gchar *uri, int plt)
     }
     deadbeef->pl_add_files_end ();
 
+    deadbeef->plt_unlock ();
     deadbeef->plug_trigger_event_playlistchanged ();
 }
 
