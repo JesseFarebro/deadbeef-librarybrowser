@@ -27,6 +27,7 @@ if test "x$EXTRA_CFLAGS" != "x" ; then
 fi
 
 test "x$PREFIX" = xNONE && PREFIX=$ac_default_prefix
+
 AC_DEFINE_UNQUOTED(LOCALEDIR, "${PREFIX}/${DATADIRNAME}/locale", [Name of gettext locale directory])
 
 case "$host" in
@@ -66,7 +67,7 @@ PKG_CHECK_MODULES(GTK_DEPS, gtk+-2.0 >= 2.12 gthread-2.0 glib-2.0,,
     AC_MSG_ERROR(gtk+-2.0 headers missing))
 
 CFLAGS+=" $(pkg-config --cflags gtk+-2.0)"
-AC_CHECK_HEADERS([deadbeef/deadbeef.h gtk/gtk.h deadbeef/gtkui_api.h],,
+AC_CHECK_HEADERS([gtk/gtk.h deadbeef/deadbeef.h deadbeef/gtkui_api.h],,
     AC_MSG_ERROR(deadbeef headers missing),
     [#ifdef HAVE_DEADBEEF_DEADBEEF_H
     #include <deadbeef/deadbeef.h>

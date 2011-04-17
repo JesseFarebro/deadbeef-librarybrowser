@@ -233,13 +233,21 @@ filebrowser_init (void *ctx)
     if (CONFIG_ENABLED)
         filebrowser_startup ();
 
-    deadbeef->ev_subscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED,
-                    DB_CALLBACK (on_config_changed), 0);
-
     /* This function MUST return false because it's called from g_idle_add() */
     return FALSE;
 }
 
+static int
+handle_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2)
+{
+    if (! CONFIG_ENABLED)
+        return 0;
+
+    if (id == DB_EV_CONFIGCHANGED)
+        on_config_changed (ctx);
+
+    return 0;
+}
 
 /* Signal handlers */
 
@@ -255,7 +263,7 @@ on_menu_toggle (GtkMenuItem *menuitem, gpointer *user_data)
 }
 
 static int
-on_config_changed (DB_event_t *ev, uintptr_t data)
+on_config_changed (uintptr_t ctx)
 {
     gboolean    enabled         = CONFIG_ENABLED;
     gboolean    hidden          = CONFIG_HIDDEN;
@@ -485,10 +493,10 @@ create_popup_menu (gchar *name, gchar *uri)
         gchar *label;
 
         for (int i = 0; i < deadbeef->plt_get_count (); i++) {
-            deadbeef->plt_lock ();
+            deadbeef->pl_lock ();
             handle = deadbeef->plt_get_handle (i);
             deadbeef->plt_get_title (handle, plt_title, sizeof(plt_title));
-            deadbeef->plt_unlock ();
+            deadbeef->pl_unlock ();
 
             label = g_strdup_printf("%s%d: %s",
                             i < 9 ? "_" : "",   // playlists 1..9 with mnemonic
@@ -508,7 +516,6 @@ create_popup_menu (gchar *name, gchar *uri)
 
     item = gtk_separator_menu_item_new ();
     gtk_container_add(GTK_CONTAINER (menu), item);
-    gtk_widget_show (item);
 
     item = gtk_menu_item_new_with_mnemonic (_("_Enter directory"));
     gtk_container_add (GTK_CONTAINER (menu), item);
@@ -533,7 +540,6 @@ create_popup_menu (gchar *name, gchar *uri)
 
     item = gtk_separator_menu_item_new ();
     gtk_container_add (GTK_CONTAINER (menu), item);
-    gtk_widget_show (item);
 
     item = gtk_menu_item_new_with_mnemonic (_("E_xpand all"));
     gtk_container_add (GTK_CONTAINER (menu), item);
@@ -708,8 +714,6 @@ gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root)
 static void
 add_uri_to_playlist (gchar *uri, int plt)
 {
-    deadbeef->plt_lock ();
-
     if (plt == PLT_CURRENT) {
         plt = deadbeef->plt_get_curr ();
     }
@@ -726,6 +730,9 @@ add_uri_to_playlist (gchar *uri, int plt)
     if (plt < 0)
         return;
 
+    deadbeef->pl_lock ();
+    void *handle = deadbeef->plt_get_handle (plt);
+
     deadbeef->pl_add_files_begin (plt);
     if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
         if (deadbeef->pl_add_dir (uri, NULL, NULL) < 0)
@@ -737,8 +744,8 @@ add_uri_to_playlist (gchar *uri, int plt)
     }
     deadbeef->pl_add_files_end ();
 
-    deadbeef->plt_unlock ();
-    deadbeef->plug_trigger_event_playlistchanged ();
+    deadbeef->pl_unlock ();
+    deadbeef->plt_modified (handle);
 }
 
 /* Check if file is filtered (return FALSE if file is filtered and not shown) */
@@ -1685,8 +1692,6 @@ int
 filebrowser_disconnect (void)
 {
     trace("disconnect\n");
-    deadbeef->ev_unsubscribe (DB_PLUGIN (&plugin), DB_EV_CONFIGCHANGED,
-                    DB_CALLBACK (on_config_changed), 0);
 
     trace("cleanup\n");
     if (CONFIG_ENABLED)
@@ -1744,6 +1749,7 @@ static DB_misc_t plugin = {
     .plugin.connect         = filebrowser_connect,
     .plugin.disconnect      = filebrowser_disconnect,
     .plugin.configdialog    = settings_dlg,
+    .plugin.message         = handle_message,
 };
 
 DB_plugin_t *

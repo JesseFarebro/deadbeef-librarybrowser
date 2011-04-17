@@ -78,9 +78,10 @@ static void         save_config (void);
 static void         load_config (void);
 static gboolean     treeview_update (void *ctx);
 static gboolean     filebrowser_init (void *ctx);
+static int          handle_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2);
 
 static void         on_menu_toggle (GtkMenuItem *menuitem, gpointer *user_data);
-static int          on_config_changed (DB_event_t *ev, uintptr_t data);
+static int          on_config_changed (uintptr_t data);
 static void         on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
                             GtkSelectionData *sdata, guint info, guint time,
                             gpointer user_data);
@@ -146,6 +147,7 @@ static void         on_treeview_row_collapsed (GtkWidget *widget, GtkTreeIter *i
 static int          plugin_init (void);
 static int          plugin_cleanup (void);
 
+
 /* Exported public functions */
 
 int                 filebrowser_start (void);
@@ -154,3 +156,4 @@ int                 filebrowser_startup (void);
 int                 filebrowser_shutdown (void);
 int                 filebrowser_connect (void);
 int                 filebrowser_disconnect (void);
+DB_plugin_t *       ddb_misc_filebrowser_load (DB_functions_t *ddb);
