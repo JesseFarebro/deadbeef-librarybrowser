@@ -489,14 +489,13 @@ create_popup_menu (gchar *name, gchar *uri)
 
     if (is_exists) {
         gchar plt_title[32];
-        void *handle;
+        ddb_playlist_t *plt;
         gchar *label;
 
+        deadbeef->pl_lock ();
         for (int i = 0; i < deadbeef->plt_get_count (); i++) {
-            deadbeef->pl_lock ();
-            handle = deadbeef->plt_get_handle (i);
-            deadbeef->plt_get_title (handle, plt_title, sizeof(plt_title));
-            deadbeef->pl_unlock ();
+            plt = deadbeef->plt_get_for_idx (i);
+            deadbeef->plt_get_title (plt, plt_title, 32);
 
             label = g_strdup_printf("%s%d: %s",
                             i < 9 ? "_" : "",   // playlists 1..9 with mnemonic
@@ -507,6 +506,7 @@ create_popup_menu (gchar *name, gchar *uri)
             gtk_container_add (GTK_CONTAINER (plmenu), item);
             g_signal_connect (item, "activate", G_CALLBACK (on_menu_add), uri);
         }
+        deadbeef->pl_unlock ();
     }
 
     item = gtk_menu_item_new_with_label (_("Add to playlist ..."));
@@ -712,26 +712,34 @@ gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root)
 
 /* Add given URI to DeaDBeeF's current playlist */
 static void
-add_uri_to_playlist (gchar *uri, int plt)
+add_uri_to_playlist (gchar *uri, int index)
 {
-    if (plt == PLT_CURRENT) {
+    deadbeef->pl_lock ();
+
+    ddb_playlist_t *plt;
+    int count = deadbeef->plt_get_count ();
+
+    if (index == PLT_CURRENT) {
         plt = deadbeef->plt_get_curr ();
     }
-    else if (plt == PLT_NEW) {
-        const gchar *title = _("New Playlist");
-        if (deadbeef->conf_get_int ("gtkui.name_playlist_from_folder", 0)) {
-            const gchar *folder = strrchr (uri, '/');
-            if (folder)
-                title = folder+1;
+    else {
+        if ((index == PLT_NEW) || (index >= count)) {
+            const gchar *title = _("New Playlist");
+            if (deadbeef->conf_get_int ("gtkui.name_playlist_from_folder", 0)) {
+                const gchar *folder = strrchr (uri, '/');
+                if (folder)
+                    title = folder+1;
+            }
+            index = deadbeef->plt_add (count, g_strdup(title));
         }
-        plt = deadbeef->plt_add (deadbeef->plt_get_count (), g_strdup(title));
+
+        plt = deadbeef->plt_get_for_idx (index);
     }
 
-    if (plt < 0)
+    if (plt == NULL) {
+        fprintf (stderr, _("could not get playlist\n"));
         return;
-
-    deadbeef->pl_lock ();
-    void *handle = deadbeef->plt_get_handle (plt);
+    }
 
     deadbeef->pl_add_files_begin (plt);
     if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
@@ -745,7 +753,7 @@ add_uri_to_playlist (gchar *uri, int plt)
     deadbeef->pl_add_files_end ();
 
     deadbeef->pl_unlock ();
-    deadbeef->plt_modified (handle);
+    deadbeef->plt_modified (plt);
 }
 
 /* Check if file is filtered (return FALSE if file is filtered and not shown) */
@@ -1267,7 +1275,10 @@ on_menu_add (GtkMenuItem *menuitem, gchar *uri)
     if (menuitem) {
         const gchar *label = gtk_menu_item_get_label (menuitem);
         gchar **slabel = g_strsplit (label, ":", 2);
-        plt = atoi (slabel[0]) - 1;  // automatically selects PLT_CURRENT on conversion failure
+        gchar *s = slabel[0];
+        if (*s == '_')   // Handle mnemonics
+            s++;
+        plt = atoi (s) - 1;  // automatically selects PLT_CURRENT (= -1) on conversion failure
         g_free ((gpointer *) label);
         g_strfreev (slabel);
     }
@@ -1374,7 +1385,7 @@ on_button_add_current (void)
     if (gtk_tree_selection_get_selected (selection, &list_store, &iter)) {
         gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
                         TREEBROWSER_COLUMN_URI, &uri, -1);
-        add_uri_to_playlist (uri, -1);
+        add_uri_to_playlist (uri, PLT_CURRENT);
         g_free (uri);
     }
 }
