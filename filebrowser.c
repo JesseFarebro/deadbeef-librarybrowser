@@ -741,16 +741,14 @@ add_uri_to_playlist (gchar *uri, int index)
         return;
     }
 
-    deadbeef->pl_add_files_begin (plt);
     if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
-        if (deadbeef->pl_add_dir (uri, NULL, NULL) < 0)
+        if (deadbeef->plt_add_dir (plt, uri, NULL, NULL) < 0)
             fprintf (stderr, _("failed to add folder %s\n"), uri);
     }
     else {
-        if (deadbeef->pl_add_file (uri, NULL, NULL) < 0)
+        if (deadbeef->plt_add_file (plt, uri, NULL, NULL) < 0)
             fprintf (stderr, _("failed to add file %s\n"), uri);
     }
-    deadbeef->pl_add_files_end ();
 
     deadbeef->pl_unlock ();
     deadbeef->plt_modified (plt);
