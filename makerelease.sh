@@ -7,8 +7,8 @@ DISTPACKAGENAME=deadbeef-devel
 INSTALLDIR=${OLDPWD}/../install
 
 DATE=`date +%Y%m%d`
-BINTARGET=${OLDPWD}/${PACKAGENAME}_${DATE}_bin.tar.gz
-SRCTARGET=${OLDPWD}/${PACKAGENAME}_${DATE}.tar.gz
+BINTARGET=${OLDPWD}/../${PACKAGENAME}_${DATE}.tar.gz
+SRCTARGET=${OLDPWD}/../${PACKAGENAME}_${DATE}_src.tar.gz
 
 rm -rf ${INSTALLDIR}
 make DESTDIR=${INSTALLDIR} install
