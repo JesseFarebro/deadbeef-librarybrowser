@@ -1,20 +1,30 @@
-#SUBDIRS =   intl\
-#            po
+
+all-local:
+	git log > ChangeLog
+	git shortlog -n -e > AUTHORS
+
+release: all
+	./makerelease.sh
+
+#SUBDIRS = \
+#	intl\
+#	po
 
 #INTLTOOL_FILES = \
-#		intltool-extract.in \
-#		intltool-merge.in \
-#		intltool-update.in
+#	intltool-extract.in \
+#	intltool-merge.in \
+#	intltool-update.in
 
 #DISTCLEANFILES = \
-#		intltool-extract \
-#		intltool-merge \
-#       intltool-update \
-#       po/.intltool-merge-cache
+#	intltool-extract \
+#	intltool-merge \
+#	intltool-update \
+#	po/.intltool-merge-cache
 
-filebrowser_SOURCES =   filebrowser.c filebrowser.h \
-                        support.c support.h \
-                        utils.c utils.h
+filebrowser_SOURCES = \
+	filebrowser.c filebrowser.h \
+	support.c support.h \
+	utils.c utils.h
 
 if STATICLINK
 pkglib_LTLIBRARIES = ddb_misc_filebrowser_GTK2.la ddb_misc_filebrowser_GTK2.fallback.la
@@ -57,10 +67,14 @@ ddb_misc_filebrowser_GTK2_fallback_la_CFLAGS = -std=c99 -I $(GTK_ROOT)/include -
 endif
 
 docsdir = $(docdir)
-docs_DATA = README COPYING
+docs_DATA = README COPYING AUTHORS ChangeLog
 
-EXTRA_DIST =    $(docs_DATA) \
-                #$(INTLTOOL_FILES) \
-                userinstall.sh quickinstall.sh
+dist_data_DATA = 
+
+EXTRA_DIST = \
+	userinstall.sh quickinstall.sh userremove.sh quickremove.sh \
+	$(docs_DATA)
+#$(INTLTOOL_FILES)
 
 ACLOCAL_AMFLAGS = -I m4
+
