@@ -30,6 +30,11 @@ Check out the player itself here:
     make
   to compile the sources. After that, the plugin is ready for install.
 
+* To enable support for the new GTK3 user interface of Deadbeef, use the --enable-gtk3
+  flag on configure (for compatibility reasons, the GTK3 version is disabled yb default):
+    ./configure --enable-gtk3
+  Then continue as described above.
+
 
 ==========================================================
 

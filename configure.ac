@@ -57,27 +57,29 @@ case "$host" in
 esac
 
 AC_ARG_ENABLE(staticlink, [AS_HELP_STRING([--enable-staticlink], [link everything statically (default: disabled)])], [enable_staticlink=$enableval], [enable_staticlink=no])
+AC_ARG_ENABLE(gtk3,     [AS_HELP_STRING([--enable-gtk3     ], [build GTK3 version of gtkui plugin (default: disabled)])], [enable_gtk3=$enableval], [enable_gtk3=no])
+AC_ARG_ENABLE(gtk2,     [AS_HELP_STRING([--disable-gtk2     ], [build GTK2 version of gtkui plugin (default: enabled)])], [enable_gtk2=$enableval], [enable_gtk2=yes])
 
 if test "x$enable_staticlink" != "xno" ; then
     AC_DEFINE_UNQUOTED([STATICLINK], [1], [Define if building static version])
     STATICLINK=yes
 fi
 
-PKG_CHECK_MODULES(GTK_DEPS, gtk+-2.0 >= 2.12 gthread-2.0 glib-2.0,,
-    AC_MSG_ERROR(gtk+-2.0 headers missing))
+if test "x$enable_gtk3" == "xyes" ; then
+    PKG_CHECK_MODULES(GTK3_DEPS, gtk+-3.0 >= 3.0 gthread-2.0 glib-2.0, HAVE_GTK3=yes, HAVE_GTK3=no)
+else
+    HAVE_GTK3=no
+fi
 
-CFLAGS+=" $(pkg-config --cflags gtk+-2.0)"
-AC_CHECK_HEADERS([gtk/gtk.h deadbeef/deadbeef.h deadbeef/gtkui_api.h],,
-    AC_MSG_ERROR(deadbeef headers missing),
-    [#ifdef HAVE_DEADBEEF_DEADBEEF_H
-    #include <deadbeef/deadbeef.h>
-    #endif
-    #ifdef HAVE_GTK_GTK_H
-    #include <gtk/gtk.h>
-    #endif
-    ])
+if test "x$enable_gtk2" == "xyes" ; then
+    PKG_CHECK_MODULES(GTK2_DEPS, gtk+-2.0 >= 2.12 gthread-2.0 glib-2.0, HAVE_GTK2=yes, HAVE_GTK2=no)
+else
+    HAVE_GTK2=no
+fi
 
 AM_CONDITIONAL(STATICLINK, test "x$STATICLINK" = "xyes")
+AM_CONDITIONAL(HAVE_GTK3, test "x$HAVE_GTK3" = "xyes")
+AM_CONDITIONAL(HAVE_GTK2, test "x$HAVE_GTK2" = "xyes")
 
 AC_CONFIG_FILES([
 Makefile

@@ -8,6 +8,7 @@ aclocal.m4
 configure
 intl/Makefile
 po/Makefile
+Makefile
 Makefile.in
 config.h
 config.h.in
@@ -38,3 +39,5 @@ POTFILES
 stamp-it
 po/Makevars.template
 *.so
+AUTHORS
+ChangeLog

@@ -36,6 +36,7 @@
 #include "support.h"
 #include "utils.h"
 
+// Switch these commented lines to enable debug messages
 //#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
 #define trace(fmt,...)
 
@@ -344,7 +345,7 @@ on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
     GtkTreeIter         iter;
     GtkTreeModel        *list_store;
     GtkTreeSelection    *selection;
-
+    
     selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (widget));
     if (gtk_tree_selection_get_selected (selection, &list_store, &iter)) {
         gchar *uri, *enc_uri;
@@ -354,7 +355,12 @@ on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
         /* Encode Filename to URI - important! */
         enc_uri = g_filename_to_uri (uri, NULL, NULL);
         trace("dnd send: %s (%s)\n", uri, enc_uri);
+#if GTK_CHECK_VERSION(3,0,0)
+        GdkAtom target = gtk_selection_data_get_target (sdata);
+        gtk_selection_data_set (sdata, target, 8, (guchar*) enc_uri, strlen (enc_uri));
+#else
         gtk_selection_data_set (sdata, sdata->target, 8, (guchar*) enc_uri, strlen (enc_uri));
+#endif
 
         g_free (uri);
         g_free (enc_uri);
@@ -1688,10 +1694,21 @@ int
 filebrowser_connect (void)
 {
     trace("connect\n");
-    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
-    if (! gtkui_plugin)
-        return -1;
+    
+#if GTK_CHECK_VERSION(3,0,0)
+    char *gtkui_id = "gtkui3";
+#else
+    char *gtkui_id = "gtkui";
+#endif
 
+    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (gtkui_id);
+    if (! gtkui_plugin) {
+        trace("warning: no plugin '%s' found", gtkui_id);
+        return -1;
+    }
+    if (gtkui_plugin)
+        trace("using '%s' plugin %d.%d\n", gtkui_id, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
+    
     g_idle_add (filebrowser_init, NULL);
 
     return 0;
@@ -1730,7 +1747,11 @@ static DB_misc_t plugin = {
     .plugin.type            = DB_PLUGIN_MISC,
     .plugin.version_major   = 0,
     .plugin.version_minor   = 3,
+#if GTK_CHECK_VERSION(3,0,0)
+    .plugin.id              = "filebrowser-gtk3",
+#else
     .plugin.id              = "filebrowser",
+#endif
     .plugin.name            = "File Browser",
     .plugin.descr           = "Simple file browser,\n" "based on Geany's treebrowser plugin",
     .plugin.copyright       =
@@ -1761,10 +1782,18 @@ static DB_misc_t plugin = {
     .plugin.message         = handle_message,
 };
 
+#if !GTK_CHECK_VERSION(3,0,0)
 DB_plugin_t *
-ddb_misc_filebrowser_load (DB_functions_t *ddb) {
+ddb_misc_filebrowser_GTK2_load (DB_functions_t *ddb) {
     deadbeef = ddb;
     return &plugin.plugin;
 }
+#else
+DB_plugin_t *
+ddb_misc_filebrowser_GTK3_load (DB_functions_t *ddb) {
+    deadbeef = ddb;
+    return &plugin.plugin;
+}
+#endif
 
 /* END OF FILE */
