@@ -403,7 +403,7 @@ create_interface (void)
     trace("modify interface\n");
     GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
     GtkWidget *tabstrip = lookup_widget (gtkui_plugin->get_mainwin (), "tabstrip");
-    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "frame1");
+    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "playlist");
 
     vbox_playlist = gtk_vbox_new (FALSE, 0);
     g_object_ref (tabstrip);    // prevent destruction of widget by removing from container
@@ -446,7 +446,7 @@ restore_interface (void)
     trace("modify interface\n");
     GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
     GtkWidget *tabstrip = lookup_widget (gtkui_plugin->get_mainwin (), "tabstrip");
-    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "frame1");
+    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "playlist");
 
     gtk_widget_hide (mainbox);
 
