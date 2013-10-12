@@ -38,7 +38,7 @@
 
 // Switch these commented lines to enable debug messages
 #ifdef DEBUG
-#pragma message "Debug mode enabled!"
+#pragma message "DEBIUG MODE ENABLED!"
 #define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
 #else
 #define trace(fmt,...)
@@ -67,9 +67,8 @@ static gint                 CONFIG_COVERART_SIZE        = 24;
 
 /* Global variables */
 static DB_misc_t            plugin;
-static DB_functions_t *     deadbeef;
-static ddb_gtkui_t *        gtkui_plugin;
-//static DB_artwork_plugin_t *artwork_plugin;
+static DB_functions_t *     deadbeef                    = NULL;
+static ddb_gtkui_t *        gtkui_plugin                = NULL;
 
 static GtkWidget *          mainmenuitem                = NULL;
 static GtkWidget *          vbox_playlist;
@@ -419,21 +418,41 @@ create_interface (void)
     trace("modify interface\n");
     GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
     GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "plugins_bottom_vbox");
+    GtkWidget* playlist_parent = gtk_widget_get_parent (playlist);
 
-    g_object_ref (playlist);  // prevent destruction of widget by removing from container
-    gtk_container_remove (GTK_CONTAINER (mainbox), playlist);
+    if (playlist_parent != mainbox) {
+        trace("interface has been altered already, will tryg to accomodate\n");
 
-    hbox_all = gtk_hpaned_new ();
-    gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
-    gtk_paned_pack2 (GTK_PANED (hbox_all), playlist, TRUE, TRUE);
+        /* not sure if this hack is even more dirty than the normal one... */
+        GtkWidget* playlist_parent_parent = gtk_widget_get_parent (playlist_parent);
 
-    gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
-    gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
+        g_object_ref(playlist_parent_parent);    // prevent destruction of widget by removing from container
+        gtk_container_remove (GTK_CONTAINER (mainbox), playlist_parent_parent);
 
-    g_object_unref (playlist);
+        hbox_all = gtk_hpaned_new ();
+        gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
+        gtk_paned_pack2 (GTK_PANED (hbox_all), playlist_parent_parent, TRUE, TRUE);
+        g_object_unref(playlist_parent_parent);
 
-    gtk_widget_show_all (hbox_all);
-    gtkui_update_listview_headers ();
+        gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
+        gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
+
+        gtk_widget_show_all (hbox_all);
+        gtkui_update_listview_headers ();
+    }
+    else {
+        g_object_ref (playlist);  // prevent destruction of widget by removing from container
+        gtk_container_remove (GTK_CONTAINER (mainbox), playlist);
+
+        hbox_all = gtk_hpaned_new ();
+        gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
+        gtk_paned_pack2 (GTK_PANED (hbox_all), playlist, TRUE, TRUE);
+
+        g_object_unref (playlist);
+
+        gtk_widget_show_all (hbox_all);
+        gtkui_update_listview_headers ();
+    }
 
     return 0;
 }
