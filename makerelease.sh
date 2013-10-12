@@ -16,6 +16,9 @@ rm -rf ${INSTALLDIR}
 make DESTDIR=${INSTALLDIR} install
 if [ -d ${INSTALLDIR} ]; then
     cd ${INSTALLDIR}
+    for file in ./usr/local/lib/deadbeef/*.so.0.0.0; do
+        cp -v $file ./`basename $file .0.0.0`
+    done
     tar -czf $BINTARGET ./
     cd ${OLDPWD}
 fi
