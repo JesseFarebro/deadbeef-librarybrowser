@@ -37,8 +37,11 @@
 #include "utils.h"
 
 // Switch these commented lines to enable debug messages
-//#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
+#ifdef DEBUG
+#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
+#else
 #define trace(fmt,...)
+#endif
 
 
 /* Hard-coded options */
@@ -63,9 +66,8 @@ static gint                 CONFIG_COVERART_SIZE        = 24;
 
 /* Global variables */
 static DB_misc_t            plugin;
-static DB_functions_t *     deadbeef;
-static ddb_gtkui_t *        gtkui_plugin;
-//static DB_artwork_plugin_t *artwork_plugin;
+static DB_functions_t *     deadbeef                    = NULL;
+static ddb_gtkui_t *        gtkui_plugin                = NULL;
 
 static GtkWidget *          mainmenuitem                = NULL;
 static GtkWidget *          vbox_playlist;
@@ -345,7 +347,7 @@ on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
     GtkTreeIter         iter;
     GtkTreeModel        *list_store;
     GtkTreeSelection    *selection;
-    
+
     selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (widget));
     if (gtk_tree_selection_get_selected (selection, &list_store, &iter)) {
         gchar *uri, *enc_uri;
@@ -405,25 +407,48 @@ create_interface (void)
     GtkWidget *tabstrip = lookup_widget (gtkui_plugin->get_mainwin (), "tabstrip");
     GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "playlist");
 
-    vbox_playlist = gtk_vbox_new (FALSE, 0);
-    g_object_ref (tabstrip);    // prevent destruction of widget by removing from container
-    g_object_ref (playlist);
-    gtk_container_remove (GTK_CONTAINER (mainbox), tabstrip);
-    gtk_container_remove (GTK_CONTAINER (mainbox), playlist);
-    gtk_box_pack_start (GTK_BOX (vbox_playlist), tabstrip, FALSE, TRUE, 0);
-    gtk_box_pack_start (GTK_BOX (vbox_playlist), playlist, TRUE, TRUE, 0);
-    g_object_unref (tabstrip);
-    g_object_unref (playlist);
+    GtkWidget* playlist_parent = gtk_widget_get_parent (playlist);
+    if (playlist_parent != mainbox) {
+        trace("interface has been altered already, will tryg to accomodate\n");
 
-    hbox_all = gtk_hpaned_new ();
-    gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
-    gtk_paned_pack2 (GTK_PANED (hbox_all), vbox_playlist, TRUE, TRUE);
+        /* not sure if this hack is even more dirty than the normal one... */
+        GtkWidget* playlist_parent_parent = gtk_widget_get_parent (playlist_parent);
 
-    gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
-    gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
+        g_object_ref(playlist_parent_parent);    // prevent destruction of widget by removing from container
+        gtk_container_remove (GTK_CONTAINER (mainbox), playlist_parent_parent);
 
-    gtk_widget_show_all (hbox_all);
-    gtkui_update_listview_headers ();
+        hbox_all = gtk_hpaned_new ();
+        gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
+        gtk_paned_pack2 (GTK_PANED (hbox_all), playlist_parent_parent, TRUE, TRUE);
+        g_object_unref(playlist_parent_parent);
+
+        gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
+        gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
+
+        gtk_widget_show_all (hbox_all);
+        gtkui_update_listview_headers ();
+    }
+    else {
+        vbox_playlist = gtk_vbox_new (FALSE, 0);
+        g_object_ref (tabstrip);    // prevent destruction of widget by removing from container
+        g_object_ref (playlist);
+        gtk_container_remove (GTK_CONTAINER (mainbox), tabstrip);
+        gtk_container_remove (GTK_CONTAINER (mainbox), playlist);
+        gtk_box_pack_start (GTK_BOX (vbox_playlist), tabstrip, FALSE, TRUE, 0);
+        gtk_box_pack_start (GTK_BOX (vbox_playlist), playlist, TRUE, TRUE, 0);
+        g_object_unref (tabstrip);
+        g_object_unref (playlist);
+
+        hbox_all = gtk_hpaned_new ();
+        gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
+        gtk_paned_pack2 (GTK_PANED (hbox_all), vbox_playlist, TRUE, TRUE);
+
+        gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
+        gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
+
+        gtk_widget_show_all (hbox_all);
+        gtkui_update_listview_headers ();
+    }
 
     return 0;
 }
@@ -1694,7 +1719,7 @@ int
 filebrowser_connect (void)
 {
     trace("connect\n");
-    
+
 #if GTK_CHECK_VERSION(3,0,0)
     char *gtkui_id = "gtkui3";
 #else
@@ -1708,7 +1733,7 @@ filebrowser_connect (void)
     }
     if (gtkui_plugin)
         trace("using '%s' plugin %d.%d\n", gtkui_id, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
-    
+
     g_idle_add (filebrowser_init, NULL);
 
     return 0;
