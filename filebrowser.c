@@ -2,7 +2,7 @@
     Filebrowser plugin for the DeaDBeeF audio player
     http://sourceforge.net/projects/deadbeef-fb/
 
-    Copyright (C) 2011 Jan D. Behrens <zykure@web.de>
+    Copyright (C) 2011-2013 Jan D. Behrens <zykure@web.de>
 
     Based on Geany treebrowser plugin:
         treebrowser.c - v0.20
@@ -37,8 +37,12 @@
 #include "utils.h"
 
 // Switch these commented lines to enable debug messages
-//#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
+#ifdef DEBUG
+#pragma message "Debug mode enabled!"
+#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
+#else
 #define trace(fmt,...)
+#endif
 
 
 /* Hard-coded options */
@@ -345,7 +349,7 @@ on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
     GtkTreeIter         iter;
     GtkTreeModel        *list_store;
     GtkTreeSelection    *selection;
-    
+
     selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (widget));
     if (gtk_tree_selection_get_selected (selection, &list_store, &iter)) {
         gchar *uri, *enc_uri;
@@ -399,20 +403,27 @@ create_interface (void)
 
     gtk_widget_set_size_request (sidebar_vbox, CONFIG_WIDTH, -1);
 
+    /* Deadbeef's main window structure is like this:
+     * + mainwin
+     *   + vbox1
+     *     + menubar
+     *     + hbox2 (toolbar)
+     *       + hbox3 (toolbar buttons)
+     *       + seekbar
+     *       + volumebar
+     *     + plugins_bottom_vbox (playlist & plugins)
+     *     + statusbar
+     *
+
     /* Really dirty hack to include the sidebar in main GUI */
     trace("modify interface\n");
     GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
-    GtkWidget *tabstrip = lookup_widget (gtkui_plugin->get_mainwin (), "tabstrip");
-    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "playlist");
+    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "plugins_bottom_vbox");
 
     vbox_playlist = gtk_vbox_new (FALSE, 0);
-    g_object_ref (tabstrip);    // prevent destruction of widget by removing from container
-    g_object_ref (playlist);
-    gtk_container_remove (GTK_CONTAINER (mainbox), tabstrip);
+    g_object_ref (playlist);  // prevent destruction of widget by removing from container
     gtk_container_remove (GTK_CONTAINER (mainbox), playlist);
-    gtk_box_pack_start (GTK_BOX (vbox_playlist), tabstrip, FALSE, TRUE, 0);
     gtk_box_pack_start (GTK_BOX (vbox_playlist), playlist, TRUE, TRUE, 0);
-    g_object_unref (tabstrip);
     g_object_unref (playlist);
 
     hbox_all = gtk_hpaned_new ();
@@ -445,20 +456,14 @@ restore_interface (void)
     /* Really dirty hack to include the sidebar in main GUI */
     trace("modify interface\n");
     GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
-    GtkWidget *tabstrip = lookup_widget (gtkui_plugin->get_mainwin (), "tabstrip");
-    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "playlist");
+    GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "plugins_bottom_vbox");
 
     gtk_widget_hide (mainbox);
 
-    g_object_ref (tabstrip);    // prevent destruction of widget by removing from container
-    g_object_ref (playlist);
-    gtk_container_remove (GTK_CONTAINER (vbox_playlist), tabstrip);
+    g_object_ref (playlist);  // prevent destruction of widget by removing from container
     gtk_container_remove (GTK_CONTAINER (vbox_playlist), playlist);
-    gtk_box_pack_start (GTK_BOX (mainbox), tabstrip, FALSE, TRUE, 0);
     gtk_box_pack_start (GTK_BOX (mainbox), playlist, TRUE, TRUE, 0);
-    gtk_box_reorder_child (GTK_BOX (mainbox), tabstrip, 2);
-    gtk_box_reorder_child (GTK_BOX (mainbox), playlist, 3);
-    g_object_unref (tabstrip);
+    gtk_box_reorder_child (GTK_BOX (mainbox), playlist, 2);
     g_object_unref (playlist);
 
     gtk_container_remove (GTK_CONTAINER (hbox_all), sidebar_vbox);
@@ -1694,21 +1699,15 @@ int
 filebrowser_connect (void)
 {
     trace("connect\n");
-    
-#if GTK_CHECK_VERSION(3,0,0)
-    char *gtkui_id = "gtkui3";
-#else
-    char *gtkui_id = "gtkui";
-#endif
 
-    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (gtkui_id);
+    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (DDB_GTKUI_PLUGIN_ID);
     if (! gtkui_plugin) {
-        trace("warning: no plugin '%s' found", gtkui_id);
+        trace("warning: no plugin '%s' found", DDB_GTKUI_PLUGIN_ID);
         return -1;
     }
     if (gtkui_plugin)
-        trace("using '%s' plugin %d.%d\n", gtkui_id, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
-    
+        trace("using '%s' plugin %d.%d\n", DDB_GTKUI_PLUGIN_ID, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
+
     g_idle_add (filebrowser_init, NULL);
 
     return 0;

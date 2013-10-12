@@ -1,8 +1,3 @@
-
-all-local:
-	git log > ChangeLog
-	git shortlog -n -e > AUTHORS
-
 release: all
 	./makerelease.sh
 

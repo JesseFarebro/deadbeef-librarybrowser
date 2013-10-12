@@ -41,3 +41,4 @@ po/Makevars.template
 *.so
 AUTHORS
 ChangeLog
+/.project
