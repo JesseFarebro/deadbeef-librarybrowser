@@ -421,18 +421,18 @@ create_interface (void)
     GtkWidget* playlist_parent = gtk_widget_get_parent (playlist);
 
     if (playlist_parent != mainbox) {
-        trace("interface has been altered already, will tryg to accomodate\n");
+        trace("interface has been altered already, will try to accomodate\n");
 
         /* not sure if this hack is even more dirty than the normal one... */
         GtkWidget* playlist_parent_parent = gtk_widget_get_parent (playlist_parent);
 
-        g_object_ref(playlist_parent_parent);    // prevent destruction of widget by removing from container
-        gtk_container_remove (GTK_CONTAINER (mainbox), playlist_parent_parent);
+        g_object_ref(playlist_parent);    // prevent destruction of widget by removing from container
+        gtk_container_remove (GTK_CONTAINER (playlist_parent_parent), playlist_parent);
 
         hbox_all = gtk_hpaned_new ();
         gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
-        gtk_paned_pack2 (GTK_PANED (hbox_all), playlist_parent_parent, TRUE, TRUE);
-        g_object_unref(playlist_parent_parent);
+        gtk_paned_pack2 (GTK_PANED (hbox_all), playlist_parent, TRUE, TRUE);
+        g_object_unref(playlist_parent);
 
         gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
         gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
@@ -449,6 +449,9 @@ create_interface (void)
         gtk_paned_pack2 (GTK_PANED (hbox_all), playlist, TRUE, TRUE);
 
         g_object_unref (playlist);
+
+        gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
+        gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
 
         gtk_widget_show_all (hbox_all);
         gtkui_update_listview_headers ();
