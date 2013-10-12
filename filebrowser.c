@@ -420,18 +420,17 @@ create_interface (void)
     GtkWidget *mainbox  = lookup_widget (gtkui_plugin->get_mainwin (), "vbox1");
     GtkWidget *playlist = lookup_widget (gtkui_plugin->get_mainwin (), "plugins_bottom_vbox");
 
-    vbox_playlist = gtk_vbox_new (FALSE, 0);
     g_object_ref (playlist);  // prevent destruction of widget by removing from container
     gtk_container_remove (GTK_CONTAINER (mainbox), playlist);
-    gtk_box_pack_start (GTK_BOX (vbox_playlist), playlist, TRUE, TRUE, 0);
-    g_object_unref (playlist);
 
     hbox_all = gtk_hpaned_new ();
     gtk_paned_pack1 (GTK_PANED (hbox_all), sidebar_vbox, FALSE, TRUE);
-    gtk_paned_pack2 (GTK_PANED (hbox_all), vbox_playlist, TRUE, TRUE);
+    gtk_paned_pack2 (GTK_PANED (hbox_all), playlist, TRUE, TRUE);
 
     gtk_container_add (GTK_CONTAINER (mainbox), hbox_all);
     gtk_box_reorder_child (GTK_BOX (mainbox), hbox_all, 2);
+
+    g_object_unref (playlist);
 
     gtk_widget_show_all (hbox_all);
     gtkui_update_listview_headers ();
