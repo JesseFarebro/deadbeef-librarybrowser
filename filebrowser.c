@@ -235,7 +235,7 @@ static gboolean
 filebrowser_init (void *ctx)
 {
     if (CONFIG_ENABLED)
-        filebrowser_startup ();
+        filebrowser_startup ((GtkWidget *)ctx);
 
     /* This function MUST return false because it's called from g_idle_add() */
     return FALSE;
@@ -289,7 +289,7 @@ on_config_changed (uintptr_t ctx)
 
     if (enabled != CONFIG_ENABLED) {
         if (CONFIG_ENABLED)
-            filebrowser_startup ();
+            filebrowser_startup (NULL);
         else
             filebrowser_shutdown ();
     }
@@ -393,12 +393,18 @@ create_menu_entry (void)
 }
 
 static int
-create_interface (void)
+create_interface (GtkWidget *cont)
 {
     trace("create sidebar\n");
     create_sidebar ();
     if (! sidebar_vbox)
         return -1;
+
+    // Deadbeef's new API allows clean adjusting of the interface
+    if (cont) {
+        gtk_container_add (GTK_CONTAINER (cont), sidebar_vbox);
+        return 0;
+    }
 
     gtk_widget_set_size_request (sidebar_vbox, CONFIG_WIDTH, -1);
 
@@ -412,7 +418,7 @@ create_interface (void)
      *       + volumebar
      *     + plugins_bottom_vbox (playlist & plugins)
      *     + statusbar
-     *
+     */
 
     /* Really dirty hack to include the sidebar in main GUI */
     trace("modify interface\n");
@@ -1199,7 +1205,6 @@ treebrowser_load_bookmarks (void)
     gchar           **lines, **line;
     GtkTreeIter     iter;
     gchar           *pos;
-    gchar           *name;
     GdkPixbuf       *icon = NULL;
 
     if (! CONFIG_SHOW_BOOKMARKS)
@@ -1244,10 +1249,7 @@ treebrowser_load_bookmarks (void)
                 pos = g_utf8_strchr (*line, -1, ' ');
                 if (pos != NULL) {
                     *pos = '\0';
-                    name = pos + 1;
                 }
-                else
-                    name = NULL;
             }
             path_full = g_filename_from_uri (*line, NULL, NULL);
             if (path_full != NULL) {
@@ -1689,12 +1691,14 @@ filebrowser_stop (void)
 }
 
 int
-filebrowser_startup (void)
+filebrowser_startup (GtkWidget *cont)
 {
     trace("startup\n");
-    if (create_interface () < 0)
+    if (create_interface (cont) < 0)
         return -1;
-    create_menu_entry ();  // don't disable plugin in case menu couldn't be created
+
+    if (plugin.plugin.message)
+        create_menu_entry ();  // don't disable plugin in case menu couldn't be created
 
     setup_dragdrop ();
     if (CONFIG_HIDDEN)
@@ -1716,22 +1720,67 @@ filebrowser_shutdown (void)
     return plugin_cleanup ();
 }
 
+#if DDB_GTKUI_API_VERSION >= 1
+typedef struct {
+    ddb_gtkui_widget_t base;
+} w_filebrowser_t;
+
+static int
+w_handle_message (ddb_gtkui_widget_t *w, uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
+    return handle_message (id, ctx, p1, p2);
+}
+
+static ddb_gtkui_widget_t *
+w_filebrowser_create (void) {
+    w_filebrowser_t *w = malloc (sizeof (w_filebrowser_t));
+    memset (w, 0, sizeof (w_filebrowser_t));
+    w->base.widget = gtk_event_box_new ();
+    w->base.message = w_handle_message;
+    gtk_widget_set_can_focus (w->base.widget, FALSE);
+
+    CONFIG_ENABLED = 1;
+    filebrowser_init (w->base.widget);
+    gtk_widget_show_all (sidebar_vbox);
+
+    gtkui_plugin->w_override_signals (w->base.widget, w);
+
+    return (ddb_gtkui_widget_t *)w;
+}
+#endif
+
 int
 filebrowser_connect (void)
 {
     trace("connect\n");
 
-    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (DDB_GTKUI_PLUGIN_ID);
-    if (! gtkui_plugin) {
-        trace("warning: no plugin '%s' found", DDB_GTKUI_PLUGIN_ID);
-        return -1;
-    }
-    if (gtkui_plugin)
+    // 0.5 compatibility
+#if !GTK_CHECK_VERSION(3,0,0)
+    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
+#else
+    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui3");
+#endif
+    if (gtkui_plugin && gtkui_plugin->gui.plugin.version_major == 1) {
         trace("using '%s' plugin %d.%d\n", DDB_GTKUI_PLUGIN_ID, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
 
-    g_idle_add (filebrowser_init, NULL);
+        printf ("fb api1\n");
+        plugin.plugin.message = handle_message;
+        g_idle_add (filebrowser_init, NULL);
+        return 0;
+    }
 
-    return 0;
+#if DDB_GTKUI_API_VERSION >= 1
+    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (DDB_GTKUI_PLUGIN_ID);
+    if (gtkui_plugin && gtkui_plugin->gui.plugin.version_major == 2) {
+        trace("using '%s' plugin %d.%d\n", DDB_GTKUI_PLUGIN_ID, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
+
+        printf ("fb api2\n");
+        // 0.6+, use the new widget API
+        gtkui_plugin->w_reg_widget (_("File browser"), w_filebrowser_create, "filebrowser", NULL);
+        return 0;
+    }
+#endif
+
+    return -1;
 }
 
 int
@@ -1739,9 +1788,11 @@ filebrowser_disconnect (void)
 {
     trace("disconnect\n");
 
-    trace("cleanup\n");
-    if (CONFIG_ENABLED)
-        plugin_cleanup ();
+    if (gtkui_plugin && gtkui_plugin->gui.plugin.version_major == 1) {
+        trace("cleanup\n");
+        if (CONFIG_ENABLED)
+            plugin_cleanup ();
+    }
 
     gtkui_plugin = NULL;
     return 0;
@@ -1763,10 +1814,12 @@ static const char settings_dlg[] =
 ;
 
 static DB_misc_t plugin = {
-    DB_PLUGIN_SET_API_VERSION
+    //DB_PLUGIN_SET_API_VERSION
     .plugin.type            = DB_PLUGIN_MISC,
+    .plugin.api_vmajor      = 1,
+    .plugin.api_vminor      = 0,
     .plugin.version_major   = 0,
-    .plugin.version_minor   = 3,
+    .plugin.version_minor   = 5,
 #if GTK_CHECK_VERSION(3,0,0)
     .plugin.id              = "filebrowser-gtk3",
 #else
@@ -1799,7 +1852,6 @@ static DB_misc_t plugin = {
     .plugin.connect         = filebrowser_connect,
     .plugin.disconnect      = filebrowser_disconnect,
     .plugin.configdialog    = settings_dlg,
-    .plugin.message         = handle_message,
 };
 
 #if !GTK_CHECK_VERSION(3,0,0)

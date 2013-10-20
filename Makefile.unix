@@ -1,0 +1,10 @@
+all: $(SOURCES) $(OUT)
+
+$(OUT): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)
+
+.c.o:
+	$(CC) $(CFLAGS) $(LDFLAGS) $< -c -o $@
+
+clean:
+	rm $(OBJECTS) $(OUT)

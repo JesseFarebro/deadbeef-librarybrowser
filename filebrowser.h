@@ -87,7 +87,7 @@ static void         on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_co
                             gpointer user_data);
 
 static int          create_menu_entry (void);
-static int          create_interface (void);
+static int          create_interface (GtkWidget *cont);
 static int          restore_interface (void);
 static GtkWidget *  create_popup_menu (gchar *name, gchar *uri);
 static GtkWidget *  create_view_and_model (void);
@@ -152,7 +152,7 @@ static int          plugin_cleanup (void);
 
 int                 filebrowser_start (void);
 int                 filebrowser_stop (void);
-int                 filebrowser_startup (void);
+int                 filebrowser_startup (GtkWidget *);
 int                 filebrowser_shutdown (void);
 int                 filebrowser_connect (void);
 int                 filebrowser_disconnect (void);
