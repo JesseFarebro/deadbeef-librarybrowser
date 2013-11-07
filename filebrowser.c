@@ -293,7 +293,7 @@ on_config_changed (uintptr_t ctx)
         if (CONFIG_ENABLED)
             filebrowser_startup (NULL);
         else
-            filebrowser_shutdown ();
+            filebrowser_shutdown (NULL);
     }
 
     if (CONFIG_ENABLED) {
@@ -397,7 +397,7 @@ create_menu_entry (void)
 static int
 create_interface (GtkWidget *cont)
 {
-    trace("create sidebar\n");
+    trace("create interface\n");
     create_sidebar ();
     if (! sidebar_vbox)
         return -1;
@@ -469,8 +469,19 @@ create_interface (GtkWidget *cont)
 }
 
 static int
-restore_interface (void)
+restore_interface (GtkWidget *cont)
 {
+    trace("restore interface\n");
+    if (! sidebar_vbox)
+        return 0;
+
+    // Deadbeef's new API allows clean adjusting of the interface
+    if (cont) {
+        gtk_container_remove (GTK_CONTAINER (cont), sidebar_vbox);
+        sidebar_vbox = NULL;
+        return 0;
+    }
+
     // save current width of sidebar
     if (CONFIG_ENABLED && ! CONFIG_HIDDEN) {
         GtkAllocation alloc;
@@ -510,6 +521,7 @@ restore_interface (void)
 static GtkWidget*
 create_popup_menu (gchar *name, gchar *uri)
 {
+    trace("create popup menu\n");
     GtkWidget *menu     = gtk_menu_new ();
     GtkWidget *plmenu   = gtk_menu_new ();  // submenu for playlists
     GtkWidget *item;
@@ -615,6 +627,7 @@ create_popup_menu (gchar *name, gchar *uri)
 static GtkWidget *
 create_view_and_model (void)
 {
+    trace("create view and model\n");
     GtkWidget * view        = gtk_tree_view_new ();
     treeview_column_text    = gtk_tree_view_column_new ();
     render_icon             = gtk_cell_renderer_pixbuf_new ();
@@ -654,9 +667,7 @@ create_view_and_model (void)
 static void
 create_sidebar (void)
 {
-    if (sidebar_vbox)
-        return;
-
+    trace("create sidebar\n");
     GtkWidget           *scrollwin;
     GtkWidget           *toolbar;
     GtkWidget           *wid, *button_add;
@@ -1714,10 +1725,10 @@ filebrowser_startup (GtkWidget *cont)
 }
 
 int
-filebrowser_shutdown (void)
+filebrowser_shutdown (GtkWidget *cont)
 {
     trace("shutdown\n");
-    if (! restore_interface ())
+    if (restore_interface (cont) < 0)
         return -1;
 
     if (mainmenuitem)
@@ -1751,6 +1762,11 @@ w_filebrowser_create (void) {
     gtkui_plugin->w_override_signals (w->base.widget, w);
 
     return (ddb_gtkui_widget_t *)w;
+}
+
+static void
+w_destroy (ddb_gtkui_widget_t *w) {
+    restore_interface (w_get_container(w));
 }
 #endif
 
