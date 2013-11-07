@@ -40,7 +40,7 @@
 #define DEBUG
 
 #ifdef DEBUG
-#pragma message "DEBIUG MODE ENABLED!"
+#pragma message "DEBUG MODE ENABLED!"
 #define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
 #else
 #define trace(fmt,...)
@@ -1722,7 +1722,7 @@ filebrowser_shutdown (void)
     return plugin_cleanup ();
 }
 
-#if DDB_GTKUI_API_VERSION >= 1
+#if DDB_GTKUI_API_VERSION_MAJOR >= 2
 typedef struct {
     ddb_gtkui_widget_t base;
 } w_filebrowser_t;
@@ -1755,7 +1755,23 @@ filebrowser_connect (void)
 {
     trace("connect\n");
 
+#if DDB_GTKUI_API_VERSION_MAJOR >= 2
+    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (DDB_GTKUI_PLUGIN_ID);
+    if (gtkui_plugin) {
+        trace("using '%s' plugin %d.%d\n", DDB_GTKUI_PLUGIN_ID, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
+        if (gtkui_plugin->gui.plugin.version_major == 2) {
+            printf ("fb api2\n");
+            // 0.6+, use the new widget API
+            gtkui_plugin->w_reg_widget (_("File browser"), DDB_WF_SINGLE_INSTANCE, w_filebrowser_create, "filebrowser", NULL);
+            return 0;
+        }
+    }
+    else
+        trace("error: could not find '%s' plugin (gtkui api version %d.%d)!\n", DDB_GTKUI_PLUGIN_ID, DDB_GTKUI_API_VERSION_MAJOR, DDB_GTKUI_API_VERSION_MINOR );
+#endif  // DDB_GTKUI_API_VERSION_MAJOR
+
     // 0.5 compatibility
+    trace("trying to fall back to 0.5 api!\n");
 #if !GTK_CHECK_VERSION(3,0,0)
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui");
 #else
@@ -1770,23 +1786,6 @@ filebrowser_connect (void)
             return 0;
         }
     }
-    else
-        trace("error: could not find '%s' plugin!\n", DDB_GTKUI_PLUGIN_ID );
-
-#if DDB_GTKUI_API_VERSION >= 1
-    gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (DDB_GTKUI_PLUGIN_ID);
-    if (gtkui_plugin) {
-        trace("using '%s' plugin %d.%d\n", DDB_GTKUI_PLUGIN_ID, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
-        if (gtkui_plugin->gui.plugin.version_major == 2) {
-            printf ("fb api2\n");
-            // 0.6+, use the new widget API
-            gtkui_plugin->w_reg_widget (_("File browser"), DDB_WF_SINGLE_INSTANCE, w_filebrowser_create, "filebrowser", NULL);
-            return 0;
-        }
-    }
-    else
-        trace("error: could not find '%s' plugin!\n", DDB_GTKUI_PLUGIN_ID );
-#endif
 
     return -1;
 }
