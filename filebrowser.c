@@ -1830,7 +1830,7 @@ static DB_misc_t plugin = {
     .plugin.api_vmajor      = 1,
     .plugin.api_vminor      = 0,
     .plugin.version_major   = 0,
-    .plugin.version_minor   = 5,
+    .plugin.version_minor   = 6,
 #if GTK_CHECK_VERSION(3,0,0)
     .plugin.id              = "filebrowser-gtk3",
 #else
@@ -1839,7 +1839,7 @@ static DB_misc_t plugin = {
     .plugin.name            = "File Browser",
     .plugin.descr           = "Simple file browser,\n" "based on Geany's treebrowser plugin",
     .plugin.copyright       =
-        "Copyright (C) 2011 Jan D. Behrens <zykure@web.de>\n"
+        "Copyright (C) 2011-2013 Jan D. Behrens <zykure@web.de>\n"
         "\n"
         "Based on the Geany treebrowser plugin by Adrian Dimitrov.\n"
         "\n"
