@@ -36,7 +36,9 @@
 #include "support.h"
 #include "utils.h"
 
-// Switch these commented lines to enable debug messages
+// Uncomment to enable debug messages
+#define DEBUG
+
 #ifdef DEBUG
 #pragma message "DEBIUG MODE ENABLED!"
 #define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
@@ -1759,25 +1761,31 @@ filebrowser_connect (void)
 #else
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id ("gtkui3");
 #endif
-    if (gtkui_plugin && gtkui_plugin->gui.plugin.version_major == 1) {
+    if (gtkui_plugin) {
         trace("using '%s' plugin %d.%d\n", DDB_GTKUI_PLUGIN_ID, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
-
-        printf ("fb api1\n");
-        plugin.plugin.message = handle_message;
-        g_idle_add (filebrowser_init, NULL);
-        return 0;
+        if (gtkui_plugin->gui.plugin.version_major == 1) {
+            printf ("fb api1\n");
+            plugin.plugin.message = handle_message;
+            g_idle_add (filebrowser_init, NULL);
+            return 0;
+        }
     }
+    else
+        trace("error: could not find '%s' plugin!\n", DDB_GTKUI_PLUGIN_ID );
 
 #if DDB_GTKUI_API_VERSION >= 1
     gtkui_plugin = (ddb_gtkui_t *) deadbeef->plug_get_for_id (DDB_GTKUI_PLUGIN_ID);
-    if (gtkui_plugin && gtkui_plugin->gui.plugin.version_major == 2) {
+    if (gtkui_plugin) {
         trace("using '%s' plugin %d.%d\n", DDB_GTKUI_PLUGIN_ID, gtkui_plugin->gui.plugin.version_major, gtkui_plugin->gui.plugin.version_minor );
-
-        printf ("fb api2\n");
-        // 0.6+, use the new widget API
-        gtkui_plugin->w_reg_widget (_("File browser"), w_filebrowser_create, "filebrowser", NULL);
-        return 0;
+        if (gtkui_plugin->gui.plugin.version_major == 2) {
+            printf ("fb api2\n");
+            // 0.6+, use the new widget API
+            gtkui_plugin->w_reg_widget (_("File browser"), DDB_WF_SINGLE_INSTANCE, w_filebrowser_create, "filebrowser", NULL);
+            return 0;
+        }
     }
+    else
+        trace("error: could not find '%s' plugin!\n", DDB_GTKUI_PLUGIN_ID );
 #endif
 
     return -1;
