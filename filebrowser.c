@@ -37,7 +37,7 @@
 #include "utils.h"
 
 // Uncomment to enable debug messages
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #pragma message "DEBUG MODE ENABLED!"
@@ -1483,6 +1483,10 @@ static gboolean
 on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
                 GtkTreeSelection *selection)
 {
+    if (gtkui_plugin->w_get_design_mode ()) {
+        return FALSE;
+    }
+
     GtkTreePath     *path = NULL;
     GtkTreeIter     iter;
     GtkTreeModel    *model;
