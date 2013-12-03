@@ -1764,10 +1764,6 @@ w_filebrowser_create (void) {
     return (ddb_gtkui_widget_t *)w;
 }
 
-static void
-w_destroy (ddb_gtkui_widget_t *w) {
-    restore_interface (w_get_container(w));
-}
 #endif
 
 int

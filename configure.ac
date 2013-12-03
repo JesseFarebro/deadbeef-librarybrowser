@@ -30,32 +30,6 @@ test "x$PREFIX" = xNONE && PREFIX=$ac_default_prefix
 
 AC_DEFINE_UNQUOTED(LOCALEDIR, "${PREFIX}/${DATADIRNAME}/locale", [Name of gettext locale directory])
 
-case "$host" in
-  i386-*-* | i486-*-* | i586-*-* | i686-*-* | i86pc-*-*)
-    AC_DEFINE(ARCH_X86_32, 1, [architecture is x86])
-    LIB="lib-x86-32"
-    ;;
-  x86_64-apple-*)
-    AC_DEFINE(ARCH_X86_64_OSX, 1, [architecture is x86_64 for OSX])
-    LIB="lib-x86-64-osx"
-    ;;
-  x86_64-*-* | amd64-*-*)
-    AC_DEFINE(ARCH_X86_64, 1, [architecture is x86_64])
-    LIB="lib-x86-64"
-    ;;
-  powerpc-*-* )
-    AC_DEFINE(ARCH_PPC_32, 1, [architecture is ppc32])
-    LIB="lib-ppc-32"
-    ;;
-  powerpc64-*-* )
-    AC_DEFINE(ARCH_PPC_64, 1, [architecture is ppc64])
-    LIB="lib-ppc-64"
-    ;;
-  *)
-    AC_DEFINE(ARCH_UNKNOWN, 1, [architecture is unknown])
-    ;;
-esac
-
 AC_ARG_ENABLE(staticlink, [AS_HELP_STRING([--enable-staticlink], [link everything statically (default: disabled)])], [enable_staticlink=$enableval], [enable_staticlink=no])
 AC_ARG_ENABLE(gtk3,     [AS_HELP_STRING([--enable-gtk3     ], [build GTK3 version of gtkui plugin (default: disabled)])], [enable_gtk3=$enableval], [enable_gtk3=no])
 AC_ARG_ENABLE(gtk2,     [AS_HELP_STRING([--disable-gtk2     ], [build GTK2 version of gtkui plugin (default: enabled)])], [enable_gtk2=$enableval], [enable_gtk2=yes])
