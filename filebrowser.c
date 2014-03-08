@@ -41,7 +41,9 @@
 
 #ifdef DEBUG
 #pragma message "DEBUG MODE ENABLED!"
-#define trace(...) { fprintf (stderr, "filebrowser: " __VA_ARGS__); }
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define trace(...) { fprintf (stderr, "filebrowser[" __FILE__ ":" TOSTRING(__LINE__) "] " __VA_ARGS__); }
 #else
 #define trace(fmt,...)
 #endif
@@ -164,6 +166,24 @@ save_config (void)
         deadbeef->conf_set_str (CONFSTR_FB_FILTER,          CONFIG_FILTER);
     if (CONFIG_COVERART)
         deadbeef->conf_set_str (CONFSTR_FB_COVERART,        CONFIG_COVERART);
+
+    if (expanded_rows)
+    {
+        GString *config_expanded_rows_str = g_string_new ("");
+        GSList *node;
+        for (node = expanded_rows; node; node = node->next)
+        {
+            if (node->data == NULL)
+                continue;
+            trace("expanded row: %s\n", (gchar*)node->data);
+            config_expanded_rows_str = g_string_append_c (config_expanded_rows_str, '|');
+            config_expanded_rows_str = g_string_append (config_expanded_rows_str, node->data);
+        }
+        gchar *config_expanded_rows = g_string_free (config_expanded_rows_str, FALSE);
+        trace("expanded rows: %s\n", config_expanded_rows);
+        deadbeef->conf_set_str (CONFSTR_FB_EXPANDED_ROWS,       config_expanded_rows);
+        free (config_expanded_rows);
+    }
 }
 
 static void
@@ -192,6 +212,24 @@ load_config (void)
     CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_DEFAULT_PATH,   DEFAULT_FB_DEFAULT_PATH));
     CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_FILTER,         DEFAULT_FB_FILTER));
     CONFIG_COVERART             = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COVERART,       DEFAULT_FB_COVERART));
+
+    gchar **config_expanded_rows;
+    config_expanded_rows        = g_strsplit (deadbeef->conf_get_str_fast (CONFSTR_FB_EXPANDED_ROWS,   ""), "|", 0);
+
+    if (expanded_rows)
+        g_slist_free (expanded_rows);
+    expanded_rows = g_slist_alloc();
+    for (int i = 0; i < g_strv_length(config_expanded_rows); i++)
+    {
+        if (strlen(config_expanded_rows[i]) == 0)
+            continue;
+        expanded_rows = g_slist_append (expanded_rows, g_strdup (config_expanded_rows[i]));
+    }
+    g_strfreev (config_expanded_rows);
+
+    GSList *node;
+    for (node = expanded_rows; node; node = node->next)
+        trace("expanded row: %s\n", node->data);
 
     deadbeef->conf_unlock ();
 
@@ -228,6 +266,7 @@ treeview_update (void *ctx)
 {
     trace("update treeview\n");
     treebrowser_chroot (NULL);  // update treeview
+    treeview_restore_expanded (NULL);
 
     /* This function MUST return false because it's called from g_idle_add() */
     return FALSE;
@@ -342,34 +381,55 @@ on_config_changed (uintptr_t ctx)
     return 0;
 }
 
+void on_drag_data_get_helper (gpointer data, gpointer userdata)
+{
+    GtkTreeIter     iter;
+    gchar           *uri, *enc_uri;
+    GtkTreePath     *path       = data;
+    GString         *uri_list   = userdata;
+
+    if (! gtk_tree_model_get_iter (GTK_TREE_MODEL (treestore), &iter, path))
+        return;
+
+    gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
+                    TREEBROWSER_COLUMN_URI, &uri, -1);
+
+    /* Encode Filename to URI - important! */
+    enc_uri = g_filename_to_uri (uri, NULL, NULL);
+    trace("dnd send: %s (%s)\n", uri, enc_uri);
+
+    uri_list = g_string_append_c (uri_list, ' ');
+    uri_list = g_string_append (uri_list, enc_uri);
+
+    g_free (uri);
+}
+
 static void
 on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
                   GtkSelectionData *sdata, guint info, guint time,
                   gpointer user_data)
 {
-    GtkTreeIter         iter;
-    GtkTreeModel        *list_store;
     GtkTreeSelection    *selection;
+    GList               *rows;
+    GString             *uri_list;
 
     selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (widget));
-    if (gtk_tree_selection_get_selected (selection, &list_store, &iter)) {
-        gchar *uri, *enc_uri;
-        gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
-                        TREEBROWSER_COLUMN_URI, &uri, -1);
+    rows = gtk_tree_selection_get_selected_rows (selection, NULL);
 
-        /* Encode Filename to URI - important! */
-        enc_uri = g_filename_to_uri (uri, NULL, NULL);
-        trace("dnd send: %s (%s)\n", uri, enc_uri);
+    uri_list = g_string_new ("");
+    g_list_foreach (rows, (GFunc) on_drag_data_get_helper, uri_list);
+    g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
+    g_list_free (rows);
+
+    gchar *uri_str = g_string_free (uri_list, FALSE);
+    trace("dnd send: %s\n", uri_str);
 #if GTK_CHECK_VERSION(3,0,0)
-        GdkAtom target = gtk_selection_data_get_target (sdata);
-        gtk_selection_data_set (sdata, target, 8, (guchar*) enc_uri, strlen (enc_uri));
+    GdkAtom target = gtk_selection_data_get_target (sdata);
+    gtk_selection_data_set (sdata, target, 8, (guchar*) uri_str, strlen (uri_str));
 #else
-        gtk_selection_data_set (sdata, sdata->target, 8, (guchar*) enc_uri, strlen (enc_uri));
+    gtk_selection_data_set (sdata, sdata->target, 8, (guchar*) uri_str, strlen (uri_str));
 #endif
-
-        g_free (uri);
-        g_free (enc_uri);
-    }
+    free (uri_str);
 }
 
 
@@ -650,7 +710,7 @@ create_view_and_model (void)
     gtk_tree_view_set_row_separator_func (GTK_TREE_VIEW (view), treeview_separator_func,
                     NULL, NULL);
     gtk_tree_selection_set_mode (gtk_tree_view_get_selection(GTK_TREE_VIEW (view)),
-                    GTK_SELECTION_SINGLE);
+                    GTK_SELECTION_MULTIPLE);
 
 #if GTK_CHECK_VERSION(2, 10, 0)
     g_object_set (view, "has-tooltip", TRUE, "tooltip-column", TREEBROWSER_COLUMN_TOOLTIP, NULL);
@@ -961,8 +1021,10 @@ treeview_check_expanded (gchar *uri)
 
     GSList *node;
     for (node = expanded_rows; node; node = node->next)
+    {
         if (utils_str_equal (uri, node->data))
             break;
+    }
     return node;  // == NULL if last node was reached
 }
 
@@ -1358,20 +1420,7 @@ on_menu_go_up (GtkMenuItem *menuitem, gpointer *user_data)
 static void
 on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data)
 {
-    GtkTreeSelection    *selection;
-    GtkTreeIter         iter;
-    GtkTreeModel        *model;
-    gchar               *uri;
-
-    selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (treeview));
-    if (gtk_tree_selection_get_selected (selection, &model, &iter)) {
-        gtk_tree_model_get (model, &iter, TREEBROWSER_COLUMN_URI, &uri, -1);
-        if (g_file_test (uri, G_FILE_TEST_IS_DIR))
-            treebrowser_browse (uri, &iter);
-        g_free (uri);
-    }
-    else
-        treebrowser_browse (addressbar_last_address, NULL);
+    treebrowser_browse (addressbar_last_address, NULL);
 }
 
 static void
@@ -1417,22 +1466,35 @@ on_menu_use_filter(GtkMenuItem *menuitem, gpointer *user_data)
 
 /* TOOLBAR'S EVENTS */
 
+void
+on_button_add_current_helper (gpointer data, gpointer userdata)
+{
+    GtkTreeIter     iter;
+    gchar           *uri;
+    GtkTreePath     *path   = data;
+
+    if (! gtk_tree_model_get_iter (GTK_TREE_MODEL (treestore), &iter, path))
+        return;
+
+    gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
+                    TREEBROWSER_COLUMN_URI, &uri, -1);
+    add_uri_to_playlist (uri, PLT_CURRENT);
+    g_free (uri);
+}
+
 static void
 on_button_add_current (void)
 {
-    GtkTreeIter         iter;
-    GtkTreeModel        *list_store;
-    GtkTreeSelection    *selection;
-    gchar               *uri;
+    GtkTreeSelection *selection;
+    GList *rows;
 
     /* Get URI for current selection */
-    selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (treeview));
-    if (gtk_tree_selection_get_selected (selection, &list_store, &iter)) {
-        gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
-                        TREEBROWSER_COLUMN_URI, &uri, -1);
-        add_uri_to_playlist (uri, PLT_CURRENT);
-        g_free (uri);
-    }
+    selection = gtk_tree_view_get_selection( GTK_TREE_VIEW (treeview));
+    rows = gtk_tree_selection_get_selected_rows (selection, NULL);
+
+    g_list_foreach (rows, (GFunc) on_button_add_current_helper, NULL);
+    g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
+    g_list_free (rows);
 }
 
 static void
@@ -1498,59 +1560,76 @@ on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
         return FALSE;
     }
 
-    GtkTreePath     *path = NULL;
-    GtkTreeIter     iter;
-    GtkTreeModel    *model;
-    gchar           *name = "", *uri = "";
+    GtkTreePath         *path = NULL;
+    GtkTreeViewColumn   *column = NULL;
+    GtkTreeIter         iter;
+    gchar               *name = "", *uri = "";
 
     gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (treeview), event->x, event->y,
-                    &path, NULL, NULL, NULL);
-    if (path)
-        gtk_tree_selection_select_path (selection, path);
+                    &path, &column, NULL, NULL);
 
-    if (gtk_tree_selection_get_selected (selection, &model, &iter))
+    if (! path)
+        return FALSE;
+
+    if (event->type == GDK_BUTTON_PRESS  &&  event->button == 3)
+    {
         /* FIXME: name and uri should be freed, but they are passed to create_popup_menu()
          * that pass them directly to some callbacks, so we can't free them here for now.
          * Gotta find a way out... */
-        gtk_tree_model_get (GTK_TREE_MODEL(treestore), &iter,
-                        TREEBROWSER_COLUMN_NAME, &name,
-                        TREEBROWSER_COLUMN_URI, &uri,
-                        -1);
+        if (gtk_tree_model_get_iter (GTK_TREE_MODEL(treestore), &iter, path))
+        {
+            gtk_tree_model_get (GTK_TREE_MODEL(treestore), &iter,
+                            TREEBROWSER_COLUMN_NAME, &name,
+                            TREEBROWSER_COLUMN_URI, &uri,
+                            -1);
 
-    if (event->button == 3) {
-        gtk_menu_popup (GTK_MENU (create_popup_menu (name, uri)),
-                        NULL, NULL, NULL, NULL, event->button, event->time);
-        return TRUE;
+            gtk_menu_popup (GTK_MENU (create_popup_menu (name, uri)),
+                            NULL, NULL, NULL, NULL, event->button, event->time);
+            return TRUE;
+        }
     }
 
     return FALSE;
 }
 
+void
+on_treeview_changed_helper (gpointer data, gpointer userdata)
+{
+    GtkTreeIter     iter;
+    gchar           *uri;
+
+    GtkTreePath     *path   = data;
+
+    if (! gtk_tree_model_get_iter (GTK_TREE_MODEL (treestore), &iter, path))
+        return;
+
+    gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
+                    TREEBROWSER_COLUMN_URI, &uri, -1);
+    if (uri == NULL)
+        return;
+
+    if (g_file_test (uri, G_FILE_TEST_EXISTS)) {
+        if (g_file_test (uri, G_FILE_TEST_IS_DIR))
+            treebrowser_browse (uri, &iter);
+    }
+    else
+        gtk_tree_store_iter_clear_nodes (&iter, TRUE);
+
+    g_free (uri);
+}
+
 static void
 on_treeview_changed (GtkWidget *widget, gpointer user_data)
 {
-    GtkTreeIter     iter;
-    GtkTreeModel    *model;
-    gchar           *uri;
+    GList           *rows;
     gboolean        has_selection = FALSE;
 
-    if (gtk_tree_selection_get_selected (GTK_TREE_SELECTION (widget), &model, &iter)) {
-        gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
-                        TREEBROWSER_COLUMN_URI, &uri, -1);
-        if (uri == NULL)
-            return;
+    rows = gtk_tree_selection_get_selected_rows (GTK_TREE_SELECTION (widget), NULL);
+    has_selection = (g_list_length (rows) > 0);
 
-        if (g_file_test (uri, G_FILE_TEST_EXISTS)) {
-            if (g_file_test (uri, G_FILE_TEST_IS_DIR))
-                treebrowser_browse (uri, &iter);
-        }
-        else
-            gtk_tree_store_iter_clear_nodes (&iter, TRUE);
-
-        g_free (uri);
-
-        has_selection = TRUE;
-    }
+    g_list_foreach (rows, (GFunc) on_treeview_changed_helper, NULL);
+    g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
+    g_list_free (rows);
 
     if (user_data)
         gtk_widget_set_sensitive (GTK_WIDGET (user_data), has_selection);
@@ -1655,9 +1734,11 @@ static int
 plugin_init (void)
 {
     trace ("init\n");
-    expanded_rows = g_slist_alloc ();
+    if (! expanded_rows)
+        expanded_rows = g_slist_alloc ();
     create_autofilter ();
     treebrowser_chroot (NULL);
+    treeview_restore_expanded (NULL);
 
     return 0;
 }
