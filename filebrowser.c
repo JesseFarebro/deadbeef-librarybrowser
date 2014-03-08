@@ -37,7 +37,7 @@
 #include "utils.h"
 
 // Uncomment to enable debug messages
-//#define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #pragma message "DEBUG MODE ENABLED!"
@@ -68,6 +68,10 @@ static gboolean             CONFIG_SHOW_ICONS;
 static gint                 CONFIG_WIDTH;
 static const gchar *        CONFIG_COVERART             = NULL;
 static gint                 CONFIG_COVERART_SIZE        = 24;
+static const gchar *        CONFIG_COLOR_BG             = NULL;
+static const gchar *        CONFIG_COLOR_FG             = NULL;
+static const gchar *        CONFIG_COLOR_BG_SEL         = NULL;
+static const gchar *        CONFIG_COLOR_FG_SEL         = NULL;
 
 /* Global variables */
 static DB_misc_t            plugin;
@@ -166,6 +170,14 @@ save_config (void)
         deadbeef->conf_set_str (CONFSTR_FB_FILTER,          CONFIG_FILTER);
     if (CONFIG_COVERART)
         deadbeef->conf_set_str (CONFSTR_FB_COVERART,        CONFIG_COVERART);
+    if (CONFIG_COLOR_BG)
+        deadbeef->conf_set_str (CONFSTR_FB_COLOR_BG,        CONFIG_COLOR_BG);
+    if (CONFIG_COLOR_FG)
+        deadbeef->conf_set_str (CONFSTR_FB_COLOR_FG,        CONFIG_COLOR_FG);
+    if (CONFIG_COLOR_BG_SEL)
+        deadbeef->conf_set_str (CONFSTR_FB_COLOR_BG_SEL,    CONFIG_COLOR_BG_SEL);
+    if (CONFIG_COLOR_FG_SEL)
+        deadbeef->conf_set_str (CONFSTR_FB_COLOR_FG_SEL,    CONFIG_COLOR_FG_SEL);
 
     if (expanded_rows)
     {
@@ -182,7 +194,7 @@ save_config (void)
         gchar *config_expanded_rows = g_string_free (config_expanded_rows_str, FALSE);
         trace("expanded rows: %s\n", config_expanded_rows);
         deadbeef->conf_set_str (CONFSTR_FB_EXPANDED_ROWS,       config_expanded_rows);
-        free (config_expanded_rows);
+        g_free (config_expanded_rows);
     }
 }
 
@@ -196,6 +208,14 @@ load_config (void)
         g_free ((gchar*) CONFIG_FILTER);
     if (CONFIG_COVERART)
         g_free ((gchar*) CONFIG_COVERART);
+    if (CONFIG_COLOR_BG)
+        g_free ((gchar*) CONFIG_COLOR_BG);
+    if (CONFIG_COLOR_FG)
+        g_free ((gchar*) CONFIG_COLOR_FG);
+    if (CONFIG_COLOR_BG_SEL)
+        g_free ((gchar*) CONFIG_COLOR_BG_SEL);
+    if (CONFIG_COLOR_FG_SEL)
+        g_free ((gchar*) CONFIG_COLOR_FG_SEL);
 
     deadbeef->conf_lock ();
 
@@ -212,6 +232,10 @@ load_config (void)
     CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_DEFAULT_PATH,   DEFAULT_FB_DEFAULT_PATH));
     CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_FILTER,         DEFAULT_FB_FILTER));
     CONFIG_COVERART             = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COVERART,       DEFAULT_FB_COVERART));
+    CONFIG_COLOR_BG             = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_BG,       ""));
+    CONFIG_COLOR_FG             = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_FG,       ""));
+    CONFIG_COLOR_BG_SEL         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_BG_SEL,   ""));
+    CONFIG_COLOR_FG_SEL         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_FG_SEL,   ""));
 
     gchar **config_expanded_rows;
     config_expanded_rows        = g_strsplit (deadbeef->conf_get_str_fast (CONFSTR_FB_EXPANDED_ROWS,   ""), "|", 0);
@@ -227,11 +251,13 @@ load_config (void)
     }
     g_strfreev (config_expanded_rows);
 
+    deadbeef->conf_unlock ();
+
+    utils_construct_style ( CONFIG_COLOR_BG, CONFIG_COLOR_FG, CONFIG_COLOR_BG_SEL, CONFIG_COLOR_FG_SEL );
+
     GSList *node;
     for (node = expanded_rows; node; node = node->next)
-        trace("expanded row: %s\n", node->data);
-
-    deadbeef->conf_unlock ();
+        trace("expanded row: %s\n", (gchar*)node->data);
 
     trace("config loaded - new settings: \n"
         "enabled:           %d \n"
@@ -245,7 +271,11 @@ load_config (void)
         "show_icons:        %d \n"
         "width:             %d \n"
         "coverart:          %s \n"
-        "coverart size:     %d \n",
+        "coverart size:     %d \n"
+        "bgcolor:           %s \n"
+        "fgcolor:           %s \n"
+        "bgcolor_sel:       %s \n"
+        "fgcolor_sel:       %s \n",
         CONFIG_ENABLED,
         CONFIG_HIDDEN,
         CONFIG_DEFAULT_PATH,
@@ -257,7 +287,11 @@ load_config (void)
         CONFIG_SHOW_ICONS,
         CONFIG_WIDTH,
         CONFIG_COVERART,
-        CONFIG_COVERART_SIZE
+        CONFIG_COVERART_SIZE,
+        CONFIG_COLOR_BG,
+        CONFIG_COLOR_FG,
+        CONFIG_COLOR_BG_SEL,
+        CONFIG_COLOR_FG_SEL
         );
 }
 
@@ -323,6 +357,10 @@ on_config_changed (uintptr_t ctx)
     gchar *     default_path    = g_strdup (CONFIG_DEFAULT_PATH);
     gchar *     filter          = g_strdup (CONFIG_FILTER);
     gchar *     coverart        = g_strdup (CONFIG_COVERART);
+    gchar *     bgcolor         = g_strdup (CONFIG_COLOR_BG);
+    gchar *     fgcolor         = g_strdup (CONFIG_COLOR_BG);
+    gchar *     bgcolor_sel     = g_strdup (CONFIG_COLOR_BG_SEL);
+    gchar *     fgcolor_sel     = g_strdup (CONFIG_COLOR_BG_SEL);
 
     gboolean do_update              = FALSE;
 
@@ -374,6 +412,10 @@ on_config_changed (uintptr_t ctx)
     g_free (default_path);
     g_free (filter);
     g_free (coverart);
+    g_free (bgcolor);
+    g_free (fgcolor);
+    g_free (bgcolor_sel);
+    g_free (fgcolor_sel);
 
     if (do_update)
         g_idle_add (treeview_update, NULL);
@@ -429,7 +471,7 @@ on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
 #else
     gtk_selection_data_set (sdata, sdata->target, 8, (guchar*) uri_str, strlen (uri_str));
 #endif
-    free (uri_str);
+    g_free (uri_str);
 }
 
 
@@ -692,6 +734,8 @@ create_view_and_model (void)
     treeview_column_text    = gtk_tree_view_column_new ();
     render_icon             = gtk_cell_renderer_pixbuf_new ();
     render_text             = gtk_cell_renderer_text_new ();
+
+    gtk_widget_set_name (view, "deadbeef_filebrowser_treeview");
 
     gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (view), FALSE);
     gtk_tree_view_append_column (GTK_TREE_VIEW (view), treeview_column_text);
@@ -1915,6 +1959,10 @@ static const char settings_dlg[] =
     "property \"Show hidden files\"             checkbox "              CONFSTR_FB_SHOW_HIDDEN_FILES    " 0 ;\n"
     "property \"Show bookmarks\"                checkbox "              CONFSTR_FB_SHOW_BOOKMARKS       " 1 ;\n"
     "property \"Sidebar width: \"               spinbtn[150,300,1] "    CONFSTR_FB_WIDTH                " 200 ;\n"
+    "property \"Background color: \"            entry "                 CONFSTR_FB_COLOR_BG             " \"\" ;\n"
+    "property \"Foreground color: \"            entry "                 CONFSTR_FB_COLOR_FG             " \"\" ;\n"
+    "property \"Background color (selected): \" entry "                 CONFSTR_FB_COLOR_BG_SEL         " \"\" ;\n"
+    "property \"Foreground color (selected): \" entry "                 CONFSTR_FB_COLOR_FG_SEL         " \"\" ;\n"
 ;
 
 static DB_misc_t plugin = {

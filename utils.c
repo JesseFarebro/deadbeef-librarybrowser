@@ -221,3 +221,29 @@ utils_check_dir (const gchar *dir, mode_t mode)
     g_free (tmp);
     return 1;
 }
+
+void
+utils_construct_style( const gchar *bgcolor, const gchar *fgcolor, const gchar *bgcolor_sel, const gchar *fgcolor_sel )
+{
+    GString *style = g_string_new ("");
+    style = g_string_append (style, "style \"deadbeef-filebrowser\" { \n");
+    if (strlen(bgcolor) > 0)       g_string_append_printf (style, "    base[NORMAL]   = \"%s\" \n", bgcolor);
+    if (strlen(bgcolor_sel) > 0)   g_string_append_printf (style, "    base[SELECTED] = \"%s\" \n", bgcolor_sel);
+    if (strlen(bgcolor_sel) > 0)   g_string_append_printf (style, "    base[ACTIVE]   = \"%s\" \n", bgcolor_sel);
+    if (strlen(fgcolor) > 0)       g_string_append_printf (style, "    text[NORMAL]   = \"%s\" \n", fgcolor);
+    if (strlen(fgcolor_sel) > 0)   g_string_append_printf (style, "    text[SELECTED] = \"%s\" \n", fgcolor_sel);
+    if (strlen(fgcolor_sel) > 0)   g_string_append_printf (style, "    text[ACTIVE]   = \"%s\" \n", fgcolor_sel);
+    if (strlen(bgcolor) > 0)       g_string_append_printf (style, "    bg[NORMAL]     = \"%s\" \n", bgcolor);
+    if (strlen(bgcolor_sel) > 0)   g_string_append_printf (style, "    bg[SELECTED]   = \"%s\" \n", bgcolor_sel);
+    if (strlen(bgcolor_sel) > 0)   g_string_append_printf (style, "    bg[ACTIVE]     = \"%s\" \n", bgcolor_sel);
+    if (strlen(fgcolor) > 0)       g_string_append_printf (style, "    fg[NORMAL]     = \"%s\" \n", fgcolor);
+    if (strlen(fgcolor_sel) > 0)   g_string_append_printf (style, "    fg[SELECTED]   = \"%s\" \n", fgcolor_sel);
+    if (strlen(fgcolor_sel) > 0)   g_string_append_printf (style, "    fg[ACTIVE]     = \"%s\" \n", fgcolor_sel);
+    style = g_string_append (style, "} \n");
+    style = g_string_append (style, "widget \"*.deadbeef_filebrowser_treeview\" style \"deadbeef-filebrowser\" \n");
+
+    gchar* style_str = g_string_free (style, FALSE);
+    fprintf(stderr, "gtk style: \n%s", style_str);
+    gtk_rc_parse_string (style_str);
+    g_free (style_str);
+}

@@ -38,3 +38,6 @@ utils_make_cache_path (const gchar *uri, gint imgsize);
 
 gint
 utils_check_dir (const gchar *dir, mode_t mode);
+
+void
+utils_construct_style( const gchar *bgcolor, const gchar *fgcolor, const gchar *bgcolor_sel, const gchar *fgcolor_sel );
