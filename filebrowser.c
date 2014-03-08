@@ -37,7 +37,7 @@
 #include "utils.h"
 
 // Uncomment to enable debug messages
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #pragma message "DEBUG MODE ENABLED!"
@@ -621,24 +621,46 @@ restore_interface (GtkWidget *cont)
 }
 
 static GtkWidget*
-create_popup_menu (gchar *name, gchar *uri)
+create_popup_menu (gchar *name, GList *uri_list)
 {
     trace("create popup menu\n");
     GtkWidget *menu     = gtk_menu_new ();
     GtkWidget *plmenu   = gtk_menu_new ();  // submenu for playlists
     GtkWidget *item;
 
-    gboolean is_exists      = g_file_test (uri, G_FILE_TEST_EXISTS);
-    gboolean is_dir         = is_exists ? g_file_test (uri, G_FILE_TEST_IS_DIR) : FALSE;
+    GString *uri_str = g_string_new ("");
+    GList *node;
+    for (node = uri_list; node; node = node->next)
+    {
+        if (! node->data)
+            continue;
+        g_string_append_c (uri_str, ' ');
+        g_string_append (uri_str, node->data);
+    }
+    gchar *uri = g_string_free (uri_str, FALSE);
+    trace("creating popup menu for files: %s\n", uri);
+
+    gint num_items      = g_list_length (uri_list);
+    gboolean is_exists  = FALSE;
+    gboolean is_dir     = FALSE;
+    if (num_items == 1)
+    {
+        is_exists   = g_file_test (uri, G_FILE_TEST_EXISTS);
+        is_dir      = is_exists ? g_file_test (uri, G_FILE_TEST_IS_DIR) : FALSE;
+    }
+    else if (num_items > 1)
+    {
+        is_exists = TRUE;
+    }
 
     item = gtk_menu_item_new_with_mnemonic (_("_Add to current playlist"));
     gtk_container_add (GTK_CONTAINER (menu), item);
-    g_signal_connect (item, "activate", G_CALLBACK (on_menu_add_current), uri);
+    g_signal_connect (item, "activate", G_CALLBACK (on_menu_add_current), uri_list);
     gtk_widget_set_sensitive (item, is_exists);
 
     item = gtk_menu_item_new_with_mnemonic (_("Add to _new playlist"));
     gtk_container_add (GTK_CONTAINER (menu), item);
-    g_signal_connect (item, "activate", G_CALLBACK (on_menu_add_new), uri);
+    g_signal_connect (item, "activate", G_CALLBACK (on_menu_add_new), uri_list);
     gtk_widget_set_sensitive (item, is_exists);
 
     if (is_exists) {
@@ -658,7 +680,7 @@ create_popup_menu (gchar *name, gchar *uri)
             g_free (label);
 
             gtk_container_add (GTK_CONTAINER (plmenu), item);
-            g_signal_connect (item, "activate", G_CALLBACK (on_menu_add), uri);
+            g_signal_connect (item, "activate", G_CALLBACK (on_menu_add), uri_list);
         }
         deadbeef->pl_unlock ();
     }
@@ -750,6 +772,7 @@ create_view_and_model (void)
 
     gtk_tree_view_set_enable_search (GTK_TREE_VIEW (view), TRUE);
     gtk_tree_view_set_search_column (GTK_TREE_VIEW (view), TREEBROWSER_COLUMN_NAME);
+    gtk_tree_view_set_rubber_banding (GTK_TREE_VIEW (view), TRUE);
 
     gtk_tree_view_set_row_separator_func (GTK_TREE_VIEW (view), treeview_separator_func,
                     NULL, NULL);
@@ -837,6 +860,7 @@ create_sidebar (void)
 
     g_signal_connect (selection,    "changed",              G_CALLBACK (on_treeview_changed),           button_add);
     g_signal_connect (treeview,     "button-press-event",   G_CALLBACK (on_treeview_mouseclick),        selection);
+    g_signal_connect (treeview,     "button-release-event", G_CALLBACK (on_treeview_mouseclick),        selection);
     g_signal_connect (treeview,     "row-activated",        G_CALLBACK (on_treeview_row_activated),     NULL);
     g_signal_connect (treeview,     "row-collapsed",        G_CALLBACK (on_treeview_row_collapsed),     NULL);
     g_signal_connect (treeview,     "row-expanded",         G_CALLBACK (on_treeview_row_expanded),      NULL);
@@ -867,7 +891,16 @@ gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root)
 
 /* Add given URI to DeaDBeeF's current playlist */
 static void
-add_uri_to_playlist (gchar *uri, int index)
+add_single_uri_to_playlist (gchar *uri, int index)
+{
+    GList *uri_list = g_list_alloc ();
+    uri_list = g_list_append (uri_list, uri);
+    add_uri_to_playlist (uri_list, index);
+    g_list_free (uri_list);
+}
+
+static void
+add_uri_to_playlist (GList *uri_list, int index)
 {
     deadbeef->pl_lock ();
 
@@ -880,10 +913,23 @@ add_uri_to_playlist (gchar *uri, int index)
     else {
         if ((index == PLT_NEW) || (index >= count)) {
             const gchar *title = _("New Playlist");
-            if (deadbeef->conf_get_int ("gtkui.name_playlist_from_folder", 0)) {
-                const gchar *folder = strrchr (uri, '/');
-                if (folder)
-                    title = folder+1;
+            if (g_list_length (uri_list) == 1)
+            {
+                gchar *uri = "";
+                GList *node;
+                for (node = uri_list; node; node = node->next)
+                {
+                    if (! node->data)
+                        continue;
+                    uri = node->data;
+                    break;
+                }
+
+                if (strlen(uri) > 0 && deadbeef->conf_get_int ("gtkui.name_playlist_from_folder", 0)) {
+                    const gchar *folder = strrchr (uri, '/');
+                    if (folder)
+                        title = folder+1;
+                }
             }
             index = deadbeef->plt_add (count, g_strdup(title));
         }
@@ -893,20 +939,37 @@ add_uri_to_playlist (gchar *uri, int index)
 
     if (plt == NULL) {
         fprintf (stderr, _("could not get playlist\n"));
+        deadbeef->pl_unlock ();
         return;
     }
 
-    if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
-        if (deadbeef->plt_add_dir (plt, uri, NULL, NULL) < 0)
-            fprintf (stderr, _("failed to add folder %s\n"), uri);
+    if (deadbeef->plt_add_files_begin (plt, 0) >= 0)  // -1 means error
+    {
+        GList *node;
+        for (node = uri_list; node; node = node->next)
+        {
+            if (! node->data)
+                continue;
+
+            gchar *uri = node->data;
+            if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
+                if (deadbeef->plt_add_dir (plt, uri, NULL, NULL) < 0)
+                    fprintf (stderr, _("failed to add folder %s\n"), uri);
+            }
+            else {
+                if (deadbeef->plt_add_file (plt, uri, NULL, NULL) < 0)
+                    fprintf (stderr, _("failed to add file %s\n"), uri);
+            }
+        }
+        deadbeef->plt_modified (plt);
     }
-    else {
-        if (deadbeef->plt_add_file (plt, uri, NULL, NULL) < 0)
-            fprintf (stderr, _("failed to add file %s\n"), uri);
+    else
+    {
+        fprintf (stderr, _("could not add files to playlist (lock failed)\n"));
     }
 
+    deadbeef->plt_add_files_end (plt, 0);
     deadbeef->pl_unlock ();
-    deadbeef->plt_modified (plt);
 }
 
 /* Check if file is filtered (return FALSE if file is filtered and not shown) */
@@ -1418,7 +1481,7 @@ treebrowser_load_bookmarks (void)
 /*  RIGHTCLICK MENU EVENTS */
 
 static void
-on_menu_add (GtkMenuItem *menuitem, gchar *uri)
+on_menu_add (GtkMenuItem *menuitem, GList *uri_list)
 {
     int plt = PLT_NEW;
 
@@ -1434,19 +1497,19 @@ on_menu_add (GtkMenuItem *menuitem, gchar *uri)
         g_strfreev (slabel);
     }
 
-    add_uri_to_playlist (uri, plt);
+    add_uri_to_playlist (uri_list, plt);
 }
 
 static void
-on_menu_add_current (GtkMenuItem *menuitem, gchar *uri)
+on_menu_add_current (GtkMenuItem *menuitem, GList *uri_list)
 {
-    add_uri_to_playlist (uri, PLT_CURRENT);
+    add_uri_to_playlist (uri_list, PLT_CURRENT);
 }
 
 static void
-on_menu_add_new (GtkMenuItem *menuitem, gchar *uri)
+on_menu_add_new (GtkMenuItem *menuitem, GList *uri_list)
 {
-    add_uri_to_playlist (uri, PLT_NEW);
+    add_uri_to_playlist (uri_list, PLT_NEW);
 }
 
 static void
@@ -1515,30 +1578,34 @@ on_button_add_current_helper (gpointer data, gpointer userdata)
 {
     GtkTreeIter     iter;
     gchar           *uri;
-    GtkTreePath     *path   = data;
+    GtkTreePath     *path       = data;
+    GList           *uri_list   = userdata;
 
     if (! gtk_tree_model_get_iter (GTK_TREE_MODEL (treestore), &iter, path))
         return;
 
     gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
                     TREEBROWSER_COLUMN_URI, &uri, -1);
-    add_uri_to_playlist (uri, PLT_CURRENT);
-    g_free (uri);
+    uri_list = g_list_append (uri_list, uri);
 }
 
 static void
 on_button_add_current (void)
 {
     GtkTreeSelection *selection;
-    GList *rows;
+    GList *rows, *uri_list;
 
     /* Get URI for current selection */
     selection = gtk_tree_view_get_selection( GTK_TREE_VIEW (treeview));
     rows = gtk_tree_selection_get_selected_rows (selection, NULL);
 
-    g_list_foreach (rows, (GFunc) on_button_add_current_helper, NULL);
+    uri_list = g_list_alloc ();
+    g_list_foreach (rows, (GFunc) on_button_add_current_helper, uri_list);
     g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
     g_list_free (rows);
+
+    add_uri_to_playlist (uri_list, PLT_CURRENT);
+    g_list_free (uri_list);
 }
 
 static void
@@ -1596,6 +1663,23 @@ on_addressbar_activate (GtkEntry *entry, gpointer user_data)
 
 /* TREEVIEW EVENTS */
 
+static void
+get_uris_from_selection (gpointer data, gpointer userdata)
+{
+    GtkTreeIter     iter;
+    gchar           *uri;
+    GtkTreePath     *path       = data;
+    GList           *uri_list   = userdata;
+
+    if (! gtk_tree_model_get_iter (GTK_TREE_MODEL (treestore), &iter, path))
+        return;
+
+    gtk_tree_model_get (GTK_TREE_MODEL (treestore), &iter,
+                    TREEBROWSER_COLUMN_URI, &uri, -1);
+    uri_list = g_list_append (uri_list, g_strdup (uri));
+    g_free (uri);
+}
+
 static gboolean
 on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
                 GtkTreeSelection *selection)
@@ -1604,30 +1688,50 @@ on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
         return FALSE;
     }
 
+    trace("mouse click event: type=%d button=%d\n", event->type, event->button);
+
     GtkTreePath         *path = NULL;
     GtkTreeViewColumn   *column = NULL;
-    GtkTreeIter         iter;
-    gchar               *name = "", *uri = "";
+    gchar               *name = "";
 
     gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (treeview), event->x, event->y,
                     &path, &column, NULL, NULL);
 
     if (! path)
-        return FALSE;
-
-    if (event->type == GDK_BUTTON_PRESS  &&  event->button == 3)
     {
-        /* FIXME: name and uri should be freed, but they are passed to create_popup_menu()
-         * that pass them directly to some callbacks, so we can't free them here for now.
-         * Gotta find a way out... */
-        if (gtk_tree_model_get_iter (GTK_TREE_MODEL(treestore), &iter, path))
-        {
-            gtk_tree_model_get (GTK_TREE_MODEL(treestore), &iter,
-                            TREEBROWSER_COLUMN_NAME, &name,
-                            TREEBROWSER_COLUMN_URI, &uri,
-                            -1);
+        gtk_tree_selection_unselect_all (selection);
+        return TRUE;
+    }
 
-            gtk_menu_popup (GTK_MENU (create_popup_menu (name, uri)),
+    if (event->type == GDK_BUTTON_PRESS)
+    {
+        /*
+        if (event->button == 1)
+        {
+            gboolean is_selected = gtk_tree_selection_path_is_selected (selection, path);
+            if (is_selected)
+                gtk_tree_selection_unselect_path (selection, path);
+            else
+                gtk_tree_selection_select_path (selection, path);
+            return TRUE;
+        }
+        */
+        if (event->button == 3)
+        {
+            gboolean is_selected = gtk_tree_selection_path_is_selected (selection, path);
+            if (! is_selected)
+                gtk_tree_selection_unselect_all (selection);
+            if (gtk_tree_selection_count_selected_rows (selection) < 1)
+                gtk_tree_selection_select_path (selection, path);
+
+            GList *rows, *uri_list;
+            uri_list = g_list_alloc ();
+            rows = gtk_tree_selection_get_selected_rows (selection, NULL);
+            g_list_foreach (rows, (GFunc)get_uris_from_selection, uri_list);
+            g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
+            g_list_free (rows);
+
+            gtk_menu_popup (GTK_MENU (create_popup_menu (name, uri_list)),
                             NULL, NULL, NULL, NULL, event->button, event->time);
             return TRUE;
         }

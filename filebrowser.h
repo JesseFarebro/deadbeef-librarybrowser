@@ -94,18 +94,20 @@ static void         on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_co
 static int          create_menu_entry (void);
 static int          create_interface (GtkWidget *cont);
 static int          restore_interface (GtkWidget *cont);
-static GtkWidget *  create_popup_menu (gchar *name, gchar *uri);
+static GtkWidget *  create_popup_menu (gchar *name, GList *uri_list);
 static GtkWidget *  create_view_and_model (void);
 static void         create_sidebar (void);
 
 static void         gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root);
-static void         add_uri_to_playlist (gchar *uri, int plt);
+static void         add_single_uri_to_playlist (gchar *uri, int plt);
+static void         add_uri_to_playlist (GList *uri_list, int plt);
 static gboolean     check_filtered (const gchar *base_name);
 static gboolean     check_hidden (const gchar *filename);
 static gchar *      get_default_dir (void);
 static GdkPixbuf *  get_icon_from_cache (const gchar *uri, const gchar *coverart,
                             gint imgsize);
 static GdkPixbuf *  get_icon_for_uri (gchar *uri);
+static void         get_uris_from_selection (gpointer data, gpointer userdata);
 static gboolean     treeview_row_expanded_iter (GtkTreeView *tree_view, GtkTreeIter *iter);
 static GSList *     treeview_check_expanded (gchar *uri);
 static void         treeview_clear_expanded (void);
@@ -118,9 +120,9 @@ static gboolean     treebrowser_browse (gchar *directory, gpointer parent);
 static void         treebrowser_bookmarks_set_state (void);
 static void         treebrowser_load_bookmarks (void);
 
-static void         on_menu_add (GtkMenuItem *menuitem, gchar *uri);
-static void         on_menu_add_current (GtkMenuItem *menuitem, gchar *uri);
-static void         on_menu_add_new (GtkMenuItem *menuitem, gchar *uri);
+static void         on_menu_add (GtkMenuItem *menuitem, GList *uri_list);
+static void         on_menu_add_current (GtkMenuItem *menuitem, GList *uri_list);
+static void         on_menu_add_new (GtkMenuItem *menuitem, GList *uri_list);
 static void         on_menu_enter_directory (GtkMenuItem *menuitem, gchar *uri);
 static void         on_menu_go_up (GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data);
