@@ -2,7 +2,7 @@
     Filebrowser plugin for the DeaDBeeF audio player
     http://sourceforge.net/projects/deadbeef-fb/
 
-    Copyright (C) 2011-2013 Jan D. Behrens <zykure@web.de>
+    Copyright (C) 2011-2014 Jan D. Behrens <zykure@web.de>
 
     Based on Geany treebrowser plugin:
         treebrowser.c - v0.20
@@ -95,6 +95,9 @@ static GSList *             expanded_rows               = NULL;
 static gchar *              known_extensions            = NULL;
 static gboolean             flag_on_expand_refresh      = FALSE;
 
+static gint                 mouseclick_lastpos[2]       = { 0, 0 };
+static gboolean             mouseclick_dragwait         = FALSE;
+
 
 /* Helper functions */
 
@@ -120,7 +123,7 @@ static void
 setup_dragdrop (void)
 {
     GtkTargetEntry entry = {
-        .target = "text/plain",
+        .target = "text/uri-list",
         .flags = GTK_TARGET_SAME_APP,
         .info = 0
     };
@@ -438,7 +441,6 @@ void on_drag_data_get_helper (gpointer data, gpointer userdata)
 
     /* Encode Filename to URI - important! */
     enc_uri = g_filename_to_uri (uri, NULL, NULL);
-    trace("dnd send: %s (%s)\n", uri, enc_uri);
 
     uri_list = g_string_append_c (uri_list, ' ');
     uri_list = g_string_append (uri_list, enc_uri);
@@ -759,6 +761,8 @@ create_view_and_model (void)
 
     gtk_widget_set_name (view, "deadbeef_filebrowser_treeview");
 
+    gtk_widget_set_events (view, GDK_EXPOSURE_MASK | GDK_POINTER_MOTION_MASK | GDK_BUTTON_MOTION_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
+
     gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (view), FALSE);
     gtk_tree_view_append_column (GTK_TREE_VIEW (view), treeview_column_text);
 
@@ -858,13 +862,14 @@ create_sidebar (void)
     gtk_box_pack_start (GTK_BOX (sidebar_vbox), sidebar_vbox_bars, FALSE, TRUE, 1);
     gtk_box_pack_start (GTK_BOX (sidebar_vbox), scrollwin, TRUE, TRUE, 1);
 
-    g_signal_connect (selection,    "changed",              G_CALLBACK (on_treeview_changed),           button_add);
-    g_signal_connect (treeview,     "button-press-event",   G_CALLBACK (on_treeview_mouseclick),        selection);
-    g_signal_connect (treeview,     "button-release-event", G_CALLBACK (on_treeview_mouseclick),        selection);
-    g_signal_connect (treeview,     "row-activated",        G_CALLBACK (on_treeview_row_activated),     NULL);
-    g_signal_connect (treeview,     "row-collapsed",        G_CALLBACK (on_treeview_row_collapsed),     NULL);
-    g_signal_connect (treeview,     "row-expanded",         G_CALLBACK (on_treeview_row_expanded),      NULL);
-    g_signal_connect (addressbar,   "activate",             G_CALLBACK (on_addressbar_activate),        NULL);
+    g_signal_connect (selection,    "changed",              G_CALLBACK (on_treeview_changed),               button_add);
+    g_signal_connect (treeview,     "button-press-event",   G_CALLBACK (on_treeview_mouseclick_press),      selection);
+    g_signal_connect (treeview,     "button-release-event", G_CALLBACK (on_treeview_mouseclick_release),    selection);
+    g_signal_connect (treeview,     "motion-notify-event",  G_CALLBACK (on_treeview_mousemove),             NULL);
+    g_signal_connect (treeview,     "row-activated",        G_CALLBACK (on_treeview_row_activated),         NULL);
+    g_signal_connect (treeview,     "row-collapsed",        G_CALLBACK (on_treeview_row_collapsed),         NULL);
+    g_signal_connect (treeview,     "row-expanded",         G_CALLBACK (on_treeview_row_expanded),          NULL);
+    g_signal_connect (addressbar,   "activate",             G_CALLBACK (on_addressbar_activate),            NULL);
 
     gtk_widget_show_all (sidebar_vbox);
 }
@@ -1681,21 +1686,21 @@ get_uris_from_selection (gpointer data, gpointer userdata)
 }
 
 static gboolean
-on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
+on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
                 GtkTreeSelection *selection)
 {
     if (gtkui_plugin->w_get_design_mode ()) {
         return FALSE;
     }
 
-    trace("mouse click event: type=%d button=%d\n", event->type, event->button);
-
-    GtkTreePath         *path = NULL;
-    GtkTreeViewColumn   *column = NULL;
-    gchar               *name = "";
-
+    GtkTreePath         *path;
+    GtkTreeViewColumn   *column;
     gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (treeview), event->x, event->y,
                     &path, &column, NULL, NULL);
+
+    mouseclick_lastpos[0] = event->x;
+    mouseclick_lastpos[1] = event->y;
+    mouseclick_dragwait = FALSE;
 
     if (! path)
     {
@@ -1703,23 +1708,50 @@ on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
         return TRUE;
     }
 
-    if (event->type == GDK_BUTTON_PRESS)
+    if (event->button == 1)
     {
-        /*
-        if (event->button == 1)
+        if (event->type == GDK_2BUTTON_PRESS)
         {
-            gboolean is_selected = gtk_tree_selection_path_is_selected (selection, path);
-            if (is_selected)
-                gtk_tree_selection_unselect_path (selection, path);
+            // toggle expand/collapse
+            gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
+            if (gtk_tree_view_row_expanded (GTK_TREE_VIEW (treeview), path))
+                gtk_tree_view_collapse_row (GTK_TREE_VIEW (treeview), path);
             else
-                gtk_tree_selection_select_path (selection, path);
-            return TRUE;
+                gtk_tree_view_expand_row (GTK_TREE_VIEW (treeview), path, FALSE);
         }
-        */
-        if (event->button == 3)
+        else if (event->type == GDK_BUTTON_PRESS)
         {
-            gboolean is_selected = gtk_tree_selection_path_is_selected (selection, path);
-            if (! is_selected)
+            mouseclick_dragwait = TRUE;
+            if (! (event->state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK)))
+            {
+                //if (gtk_tree_selection_count_selected_rows (selection) < 1)
+                //    gtk_tree_selection_select_path (selection, path);
+                if (gtk_tree_selection_count_selected_rows (selection) <= 1)
+                {
+                    // select row
+                    gtk_tree_selection_unselect_all (selection);
+                    gtk_tree_selection_select_path (selection, path);
+                }
+            }
+            else if (event->state & GDK_CONTROL_MASK)
+            {
+                // toggle selection
+                if (gtk_tree_selection_path_is_selected (selection, path))
+                    gtk_tree_selection_unselect_path (selection, path);
+                else
+                    gtk_tree_selection_select_path (selection, path);
+            }
+            else if (event->state & GDK_SHIFT_MASK)
+            {
+                // FIXME: currently ignored
+            }
+        }
+    }
+    else if (event->button == 3)
+    {
+        if (event->type == GDK_BUTTON_PRESS)
+        {
+            if (! gtk_tree_selection_path_is_selected (selection, path))
                 gtk_tree_selection_unselect_all (selection);
             if (gtk_tree_selection_count_selected_rows (selection) < 1)
                 gtk_tree_selection_select_path (selection, path);
@@ -1731,13 +1763,79 @@ on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
             g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
             g_list_free (rows);
 
-            gtk_menu_popup (GTK_MENU (create_popup_menu (name, uri_list)),
+            gtk_menu_popup (GTK_MENU (create_popup_menu ("", uri_list)),
                             NULL, NULL, NULL, NULL, event->button, event->time);
-            return TRUE;
         }
     }
 
-    return FALSE;
+    return TRUE;
+}
+
+static gboolean
+on_treeview_mouseclick_release (GtkWidget *widget, GdkEventButton *event,
+                GtkTreeSelection *selection)
+{
+    if (gtkui_plugin->w_get_design_mode ()) {
+        return FALSE;
+    }
+
+    GtkTreePath         *path;
+    GtkTreeViewColumn   *column;
+    gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (treeview), mouseclick_lastpos[0], mouseclick_lastpos[1],
+                    &path, &column, NULL, NULL);
+
+    if (! path)
+    {
+        gtk_tree_selection_unselect_all (selection);
+        return TRUE;
+    }
+
+    if (mouseclick_dragwait)
+    {
+        mouseclick_dragwait = FALSE;
+        if (! gtk_tree_selection_path_is_selected (selection, path))
+        {
+            gtk_tree_selection_unselect_all (selection);
+            gtk_tree_selection_select_path (selection, path);
+        }
+    }
+    /*
+    else if (mouseclick_areaselect)
+    {
+    }
+    */
+
+    return TRUE;
+}
+
+static gboolean
+on_treeview_mousemove (GtkWidget *widget, GdkEventButton *event)
+{
+    if (gtkui_plugin->w_get_design_mode ()) {
+        return FALSE;
+    }
+
+    if (mouseclick_dragwait)
+    {
+        if (gtk_drag_check_threshold (widget, mouseclick_lastpos[0], event->x, mouseclick_lastpos[1], event->y))
+        {
+            mouseclick_dragwait = FALSE;
+            GtkTargetEntry entry = {
+                .target = "text/uri-list",
+                .flags = GTK_TARGET_SAME_APP,
+                .info = 0
+            };
+            GtkTargetList *target = gtk_target_list_new (&entry, 1);
+            gtk_drag_begin (widget, target, GDK_ACTION_COPY | GDK_ACTION_MOVE, 1, (GdkEvent *)event);
+        }
+    }
+    /*
+    else if (mouseclick_areaselect)
+    {
+    }
+    */
+
+    return TRUE;
 }
 
 void
@@ -2084,7 +2182,7 @@ static DB_misc_t plugin = {
     .plugin.name            = "File Browser",
     .plugin.descr           = "Simple file browser,\n" "based on Geany's treebrowser plugin",
     .plugin.copyright       =
-        "Copyright (C) 2011-2013 Jan D. Behrens <zykure@web.de>\n"
+        "Copyright (C) 2011-2014 Jan D. Behrens <zykure@web.de>\n"
         "\n"
         "Based on the Geany treebrowser plugin by Adrian Dimitrov.\n"
         "\n"

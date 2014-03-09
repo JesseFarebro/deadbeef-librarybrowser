@@ -141,8 +141,11 @@ static void         on_button_go_root (void);
 static void         on_button_go_default (void);
 static void         on_addressbar_activate (GtkEntry *entry, gpointer user_data);
 
-static gboolean     on_treeview_mouseclick (GtkWidget *widget, GdkEventButton *event,
+static gboolean     on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
                             GtkTreeSelection *selection);
+static gboolean     on_treeview_mouseclick_release (GtkWidget *widget, GdkEventButton *event,
+                            GtkTreeSelection *selection);
+static gboolean     on_treeview_mousemove (GtkWidget *widget, GdkEventButton *event);
 static void         on_treeview_changed (GtkWidget *widget, gpointer user_data);
 static void         on_treeview_row_activated (GtkWidget *widget, GtkTreePath *path,
                             GtkTreeViewColumn *column, gpointer user_data);
