@@ -50,7 +50,7 @@
 
 
 /* Hard-coded options */
-static gboolean             CONFIG_CHROOT_ON_DCLICK     = TRUE;
+//static gboolean             CONFIG_CHROOT_ON_DCLICK     = TRUE;
 static gboolean             CONFIG_SHOW_TREE_LINES      = FALSE;
 static gint                 CONFIG_DIR_ICON_SIZE        = 24;
 static gint                 CONFIG_FILE_ICON_SIZE       = 16;
@@ -874,7 +874,7 @@ create_sidebar (void)
     g_signal_connect (treeview,     "button-press-event",   G_CALLBACK (on_treeview_mouseclick_press),      selection);
     g_signal_connect (treeview,     "button-release-event", G_CALLBACK (on_treeview_mouseclick_release),    selection);
     g_signal_connect (treeview,     "motion-notify-event",  G_CALLBACK (on_treeview_mousemove),             NULL);
-    g_signal_connect (treeview,     "row-activated",        G_CALLBACK (on_treeview_row_activated),         NULL);
+    //g_signal_connect (treeview,     "row-activated",        G_CALLBACK (on_treeview_row_activated),         NULL);
     g_signal_connect (treeview,     "row-collapsed",        G_CALLBACK (on_treeview_row_collapsed),         NULL);
     g_signal_connect (treeview,     "row-expanded",         G_CALLBACK (on_treeview_row_expanded),          NULL);
     g_signal_connect (addressbar,   "activate",             G_CALLBACK (on_addressbar_activate),            NULL);
@@ -1143,12 +1143,13 @@ treeview_check_expanded (gchar *uri)
         return NULL;
 
     GSList *node;
-    gboolean match = FALSE;
-    for (node = expanded_rows; node && !match; node = node->next)
+    for (node = expanded_rows; node; node = node->next)
     {
         gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
-        match = utils_str_equal (enc_uri, node->data);
+        gboolean match = utils_str_equal (enc_uri, node->data);
         g_free (enc_uri);
+        if (match)
+            break;
     }
     return node;  // == NULL if last node was reached
 }
@@ -1930,7 +1931,7 @@ on_treeview_changed (GtkWidget *widget, gpointer user_data)
     if (user_data)
         gtk_widget_set_sensitive (GTK_WIDGET (user_data), has_selection);
 }
-
+/*
 static void
 on_treeview_row_activated (GtkWidget *widget, GtkTreePath *path,
                 GtkTreeViewColumn *column, gpointer user_data)
@@ -1958,7 +1959,7 @@ on_treeview_row_activated (GtkWidget *widget, GtkTreePath *path,
 
     g_free(uri);
 }
-
+*/
 static void
 on_treeview_row_expanded (GtkWidget *widget, GtkTreeIter *iter,
                 GtkTreePath *path, gpointer user_data)
@@ -2008,18 +2009,6 @@ on_treeview_row_collapsed (GtkWidget *widget, GtkTreeIter *iter,
         GdkPixbuf *icon = get_icon_for_uri (uri);
         gtk_tree_store_set (treestore, iter, TREEBROWSER_COLUMN_ICON, icon, -1);
         g_object_unref (icon);
-    }
-
-    for (GSList *node = expanded_rows; node; node = node->next)
-    {
-        gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
-        gboolean match = utils_str_equal (uri, node->data);
-        g_free (enc_uri);
-        if (match) {
-            g_free (node->data);
-            expanded_rows = g_slist_delete_link (expanded_rows, node);
-            break;
-        }
     }
 
     GSList *node = treeview_check_expanded (uri);
