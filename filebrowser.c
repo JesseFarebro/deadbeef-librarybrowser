@@ -97,6 +97,7 @@ static gboolean             flag_on_expand_refresh      = FALSE;
 
 static gint                 mouseclick_lastpos[2]       = { 0, 0 };
 static gboolean             mouseclick_dragwait         = FALSE;
+static GtkTreePath *        mouseclick_lastpath         = NULL;
 
 
 /* Helper functions */
@@ -713,7 +714,7 @@ create_popup_menu (gchar *name, GList *uri_list)
 
     item = gtk_menu_item_new_with_mnemonic (_("Copy full _path to clipboard"));
     gtk_container_add (GTK_CONTAINER (menu), item);
-    g_signal_connect(item, "activate", G_CALLBACK (on_menu_copy_uri), uri);
+    g_signal_connect(item, "activate", G_CALLBACK (on_menu_copy_uri), uri_list);
     gtk_widget_set_sensitive (item, is_exists);
 
     item = gtk_separator_menu_item_new ();
@@ -776,7 +777,9 @@ create_view_and_model (void)
 
     gtk_tree_view_set_enable_search (GTK_TREE_VIEW (view), TRUE);
     gtk_tree_view_set_search_column (GTK_TREE_VIEW (view), TREEBROWSER_COLUMN_NAME);
-    gtk_tree_view_set_rubber_banding (GTK_TREE_VIEW (view), TRUE);
+    //gtk_tree_view_set_rubber_banding (GTK_TREE_VIEW (view), TRUE);
+    gtk_tree_view_set_show_expanders (GTK_TREE_VIEW (view), TRUE);
+    //gtk_tree_view_set_level_indentation (GTK_TREE_VIEW (view), 16);
 
     gtk_tree_view_set_row_separator_func (GTK_TREE_VIEW (view), treeview_separator_func,
                     NULL, NULL);
@@ -926,6 +929,7 @@ add_uri_to_playlist (GList *uri_list, int index)
                 {
                     if (! node->data)
                         continue;
+
                     uri = node->data;
                     break;
                 }
@@ -957,14 +961,16 @@ add_uri_to_playlist (GList *uri_list, int index)
                 continue;
 
             gchar *uri = node->data;
+            gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
             if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
-                if (deadbeef->plt_add_dir (plt, uri, NULL, NULL) < 0)
-                    fprintf (stderr, _("failed to add folder %s\n"), uri);
+                if (deadbeef->plt_add_dir (plt, enc_uri, NULL, NULL) < 0)
+                    fprintf (stderr, _("failed to add folder %s\n"), enc_uri);
             }
             else {
-                if (deadbeef->plt_add_file (plt, uri, NULL, NULL) < 0)
-                    fprintf (stderr, _("failed to add file %s\n"), uri);
+                if (deadbeef->plt_add_file (plt, enc_uri, NULL, NULL) < 0)
+                    fprintf (stderr, _("failed to add file %s\n"), enc_uri);
             }
+            g_free (enc_uri);
         }
         deadbeef->plt_modified (plt);
     }
@@ -1548,10 +1554,24 @@ on_menu_collapse_all(GtkMenuItem *menuitem, gpointer *user_data)
 }
 
 static void
-on_menu_copy_uri(GtkMenuItem *menuitem, gchar *uri)
+on_menu_copy_uri(GtkMenuItem *menuitem, GList *uri_list)
 {
+    GString *uri_str = g_string_new ("");
+    GList *node;
+    for (node = uri_list; node; node = node->next)
+    {
+        if (! node->data)
+            continue;
+
+        gchar *enc_uri = g_filename_to_uri (node->data, NULL, NULL);
+        uri_str = g_string_append_c (uri_str, ' ');
+        uri_str = g_string_append (uri_str, enc_uri);
+    }
+
+    gchar *uri = g_string_free (uri_str, FALSE);
     GtkClipboard *cb = gtk_clipboard_get (GDK_SELECTION_CLIPBOARD);
     gtk_clipboard_set_text (cb, uri, -1);
+    g_free (uri);
 }
 
 static void
@@ -1702,48 +1722,59 @@ on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
     mouseclick_lastpos[1] = event->y;
     mouseclick_dragwait = FALSE;
 
-    if (! path)
-    {
-        gtk_tree_selection_unselect_all (selection);
-        return TRUE;
-    }
+    gint selected_rows = gtk_tree_selection_count_selected_rows (selection);
+    gboolean is_selected = gtk_tree_selection_path_is_selected (selection, path);
+    gboolean is_expanded = gtk_tree_view_row_expanded (GTK_TREE_VIEW (treeview), path);
 
     if (event->button == 1)
     {
+        if (! path)
+        {
+            gtk_tree_selection_unselect_all (selection);
+            return TRUE;
+        }
+
         if (event->type == GDK_2BUTTON_PRESS)
         {
             // toggle expand/collapse
-            gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
-            if (gtk_tree_view_row_expanded (GTK_TREE_VIEW (treeview), path))
+            if (is_expanded)
                 gtk_tree_view_collapse_row (GTK_TREE_VIEW (treeview), path);
             else
                 gtk_tree_view_expand_row (GTK_TREE_VIEW (treeview), path, FALSE);
+            gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
         }
         else if (event->type == GDK_BUTTON_PRESS)
         {
             mouseclick_dragwait = TRUE;
             if (! (event->state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK)))
             {
-                //if (gtk_tree_selection_count_selected_rows (selection) < 1)
-                //    gtk_tree_selection_select_path (selection, path);
-                if (gtk_tree_selection_count_selected_rows (selection) <= 1)
+                if (selected_rows <= 1)
                 {
                     // select row
-                    gtk_tree_selection_unselect_all (selection);
-                    gtk_tree_selection_select_path (selection, path);
+                    gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
                 }
             }
             else if (event->state & GDK_CONTROL_MASK)
             {
                 // toggle selection
-                if (gtk_tree_selection_path_is_selected (selection, path))
+                if (is_selected)
                     gtk_tree_selection_unselect_path (selection, path);
                 else
                     gtk_tree_selection_select_path (selection, path);
             }
             else if (event->state & GDK_SHIFT_MASK)
             {
-                // FIXME: currently ignored
+                // add to selection - FIXME: allow unselecting too
+                if (mouseclick_lastpath != NULL)
+                {
+                    gint depth = gtk_tree_path_get_depth (path);
+                    gint last_depth = gtk_tree_path_get_depth (mouseclick_lastpath);
+                    if (depth == last_depth)
+                    {
+                        // FIXME: selecting over different depths leads to segfault!
+                        gtk_tree_selection_select_range (selection, mouseclick_lastpath, path);
+                    }
+                }
             }
         }
     }
@@ -1751,10 +1782,13 @@ on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
     {
         if (event->type == GDK_BUTTON_PRESS)
         {
-            if (! gtk_tree_selection_path_is_selected (selection, path))
-                gtk_tree_selection_unselect_all (selection);
-            if (gtk_tree_selection_count_selected_rows (selection) < 1)
-                gtk_tree_selection_select_path (selection, path);
+            if (path)
+            {
+                if (selected_rows < 1)
+                    gtk_tree_selection_select_path (selection, path);
+                if (! is_selected)
+                    gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
+            }
 
             GList *rows, *uri_list;
             uri_list = g_list_alloc ();
@@ -1781,29 +1815,36 @@ on_treeview_mouseclick_release (GtkWidget *widget, GdkEventButton *event,
 
     GtkTreePath         *path;
     GtkTreeViewColumn   *column;
-    gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (treeview), mouseclick_lastpos[0], mouseclick_lastpos[1],
+    gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (treeview), event->x, event->y,
                     &path, &column, NULL, NULL);
 
-    if (! path)
-    {
-        gtk_tree_selection_unselect_all (selection);
-        return TRUE;
-    }
+    //gint selected_rows = gtk_tree_selection_count_selected_rows (selection);
 
-    if (mouseclick_dragwait)
+    if (event->button == 1)
     {
-        mouseclick_dragwait = FALSE;
-        if (! gtk_tree_selection_path_is_selected (selection, path))
+        if (! path)
         {
+            mouseclick_lastpath = NULL;
             gtk_tree_selection_unselect_all (selection);
-            gtk_tree_selection_select_path (selection, path);
+            return TRUE;
         }
+
+        if (mouseclick_dragwait)
+        {
+            mouseclick_dragwait = FALSE;
+            if (! (event->state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK)))
+            {
+                // select row (abort drag)
+                mouseclick_lastpath = path;
+                gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
+            }
+        }
+        /*
+        else if (mouseclick_areaselect)
+        {
+        }
+        */
     }
-    /*
-    else if (mouseclick_areaselect)
-    {
-    }
-    */
 
     return TRUE;
 }
