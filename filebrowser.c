@@ -68,6 +68,7 @@ static gboolean             CONFIG_SHOW_ICONS;
 static gint                 CONFIG_WIDTH;
 static const gchar *        CONFIG_COVERART             = NULL;
 static gint                 CONFIG_COVERART_SIZE        = 24;
+static gboolean             CONFIG_SAVE_TREEVIEW        = TRUE;
 static const gchar *        CONFIG_COLOR_BG             = NULL;
 static const gchar *        CONFIG_COLOR_FG             = NULL;
 static const gchar *        CONFIG_COLOR_BG_SEL         = NULL;
@@ -167,6 +168,7 @@ save_config (void)
     deadbeef->conf_set_int (CONFSTR_FB_SHOW_ICONS,          CONFIG_SHOW_ICONS);
     deadbeef->conf_set_int (CONFSTR_FB_WIDTH,               CONFIG_WIDTH);
     deadbeef->conf_set_int (CONFSTR_FB_COVERART_SIZE,       CONFIG_COVERART_SIZE);
+    deadbeef->conf_set_int (CONFSTR_FB_SAVE_TREEVIEW,       CONFIG_SAVE_TREEVIEW);
 
     if (CONFIG_DEFAULT_PATH)
         deadbeef->conf_set_str (CONFSTR_FB_DEFAULT_PATH,    CONFIG_DEFAULT_PATH);
@@ -183,7 +185,7 @@ save_config (void)
     if (CONFIG_COLOR_FG_SEL)
         deadbeef->conf_set_str (CONFSTR_FB_COLOR_FG_SEL,    CONFIG_COLOR_FG_SEL);
 
-    if (expanded_rows)
+    if (CONFIG_SAVE_TREEVIEW && expanded_rows)
     {
         GString *config_expanded_rows_str = g_string_new ("");
         GSList *node;
@@ -191,13 +193,13 @@ save_config (void)
         {
             if (node->data == NULL)
                 continue;
-            trace("expanded row: %s\n", (gchar*)node->data);
-            config_expanded_rows_str = g_string_append_c (config_expanded_rows_str, '|');
+            if (config_expanded_rows_str->len > 0)
+                config_expanded_rows_str = g_string_append_c (config_expanded_rows_str, ' ');
             config_expanded_rows_str = g_string_append (config_expanded_rows_str, node->data);
         }
         gchar *config_expanded_rows = g_string_free (config_expanded_rows_str, FALSE);
         trace("expanded rows: %s\n", config_expanded_rows);
-        deadbeef->conf_set_str (CONFSTR_FB_EXPANDED_ROWS,       config_expanded_rows);
+        deadbeef->conf_set_str (CONFSTR_FB_EXPANDED_ROWS, config_expanded_rows);
         g_free (config_expanded_rows);
     }
 }
@@ -223,6 +225,10 @@ load_config (void)
 
     deadbeef->conf_lock ();
 
+    if (expanded_rows)
+        g_slist_free (expanded_rows);
+    expanded_rows = g_slist_alloc();
+
     CONFIG_ENABLED              = deadbeef->conf_get_int (CONFSTR_FB_ENABLED,             TRUE);
     CONFIG_HIDDEN               = deadbeef->conf_get_int (CONFSTR_FB_HIDDEN,              FALSE);
     CONFIG_SHOW_HIDDEN_FILES    = deadbeef->conf_get_int (CONFSTR_FB_SHOW_HIDDEN_FILES,   FALSE);
@@ -232,6 +238,7 @@ load_config (void)
     CONFIG_SHOW_ICONS           = deadbeef->conf_get_int (CONFSTR_FB_SHOW_ICONS,          TRUE);
     CONFIG_WIDTH                = deadbeef->conf_get_int (CONFSTR_FB_WIDTH,               200);
     CONFIG_COVERART_SIZE        = deadbeef->conf_get_int (CONFSTR_FB_COVERART_SIZE,       24);
+    CONFIG_SAVE_TREEVIEW        = deadbeef->conf_get_int (CONFSTR_FB_SAVE_TREEVIEW,       TRUE);
 
     CONFIG_DEFAULT_PATH         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_DEFAULT_PATH,   DEFAULT_FB_DEFAULT_PATH));
     CONFIG_FILTER               = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_FILTER,         DEFAULT_FB_FILTER));
@@ -241,27 +248,23 @@ load_config (void)
     CONFIG_COLOR_BG_SEL         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_BG_SEL,   ""));
     CONFIG_COLOR_FG_SEL         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_FG_SEL,   ""));
 
-    gchar **config_expanded_rows;
-    config_expanded_rows        = g_strsplit (deadbeef->conf_get_str_fast (CONFSTR_FB_EXPANDED_ROWS,   ""), "|", 0);
-
-    if (expanded_rows)
-        g_slist_free (expanded_rows);
-    expanded_rows = g_slist_alloc();
-    for (int i = 0; i < g_strv_length(config_expanded_rows); i++)
+    if (CONFIG_SAVE_TREEVIEW)
     {
-        if (strlen(config_expanded_rows[i]) == 0)
-            continue;
-        expanded_rows = g_slist_append (expanded_rows, g_strdup (config_expanded_rows[i]));
+        gchar **config_expanded_rows;
+        config_expanded_rows = g_strsplit (deadbeef->conf_get_str_fast (CONFSTR_FB_EXPANDED_ROWS,   ""), " ", 0);
+
+        for (int i = 0; i < g_strv_length(config_expanded_rows); i++)
+        {
+            if (strlen(config_expanded_rows[i]) == 0)
+                continue;
+            expanded_rows = g_slist_append (expanded_rows, g_strdup (config_expanded_rows[i]));
+        }
+        g_strfreev (config_expanded_rows);
     }
-    g_strfreev (config_expanded_rows);
 
     deadbeef->conf_unlock ();
 
     utils_construct_style ( CONFIG_COLOR_BG, CONFIG_COLOR_FG, CONFIG_COLOR_BG_SEL, CONFIG_COLOR_FG_SEL );
-
-    GSList *node;
-    for (node = expanded_rows; node; node = node->next)
-        trace("expanded row: %s\n", (gchar*)node->data);
 
     trace("config loaded - new settings: \n"
         "enabled:           %d \n"
@@ -276,6 +279,7 @@ load_config (void)
         "width:             %d \n"
         "coverart:          %s \n"
         "coverart size:     %d \n"
+        "save_treeview:     %d \n"
         "bgcolor:           %s \n"
         "fgcolor:           %s \n"
         "bgcolor_sel:       %s \n"
@@ -292,6 +296,7 @@ load_config (void)
         CONFIG_WIDTH,
         CONFIG_COVERART,
         CONFIG_COVERART_SIZE,
+        CONFIG_SAVE_TREEVIEW,
         CONFIG_COLOR_BG,
         CONFIG_COLOR_FG,
         CONFIG_COLOR_BG_SEL,
@@ -1138,10 +1143,12 @@ treeview_check_expanded (gchar *uri)
         return NULL;
 
     GSList *node;
-    for (node = expanded_rows; node; node = node->next)
+    gboolean match = FALSE;
+    for (node = expanded_rows; node && !match; node = node->next)
     {
-        if (utils_str_equal (uri, node->data))
-            break;
+        gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
+        match = utils_str_equal (enc_uri, node->data);
+        g_free (enc_uri);
     }
     return node;  // == NULL if last node was reached
 }
@@ -1153,8 +1160,10 @@ treeview_clear_expanded (void)
         return;
 
     for (GSList *node = expanded_rows; node; node = node->next)
+    {
         if (node->data)
             g_free (node->data);
+    }
     g_slist_free (expanded_rows);
     expanded_rows = g_slist_alloc ();  // make sure expanded_rows stays valid
 }
@@ -1976,7 +1985,10 @@ on_treeview_row_expanded (GtkWidget *widget, GtkTreeIter *iter,
 
     GSList *node = treeview_check_expanded (uri);
     if (! node)
-        expanded_rows = g_slist_append (expanded_rows, g_strdup (uri));
+    {
+        gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
+        expanded_rows = g_slist_append (expanded_rows, enc_uri);
+    }
 
     g_free (uri);
 }
@@ -1999,11 +2011,16 @@ on_treeview_row_collapsed (GtkWidget *widget, GtkTreeIter *iter,
     }
 
     for (GSList *node = expanded_rows; node; node = node->next)
-        if (utils_str_equal (uri, node->data)) {
+    {
+        gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
+        gboolean match = utils_str_equal (uri, node->data);
+        g_free (enc_uri);
+        if (match) {
             g_free (node->data);
             expanded_rows = g_slist_delete_link (expanded_rows, node);
             break;
         }
+    }
 
     GSList *node = treeview_check_expanded (uri);
     if (node) {
@@ -2202,6 +2219,8 @@ static const char settings_dlg[] =
     "property \"Show hidden files\"             checkbox "              CONFSTR_FB_SHOW_HIDDEN_FILES    " 0 ;\n"
     "property \"Show bookmarks\"                checkbox "              CONFSTR_FB_SHOW_BOOKMARKS       " 1 ;\n"
     "property \"Sidebar width: \"               spinbtn[150,300,1] "    CONFSTR_FB_WIDTH                " 200 ;\n"
+    "property \"Save treeview over sessions (restore previously expanded items)\" "
+                                               "checkbox "              CONFSTR_FB_SAVE_TREEVIEW        " 1 ;\n"
     "property \"Background color: \"            entry "                 CONFSTR_FB_COLOR_BG             " \"\" ;\n"
     "property \"Foreground color: \"            entry "                 CONFSTR_FB_COLOR_FG             " \"\" ;\n"
     "property \"Background color (selected): \" entry "                 CONFSTR_FB_COLOR_BG_SEL         " \"\" ;\n"

@@ -40,6 +40,7 @@
 #define     CONFSTR_FB_WIDTH                "filebrowser.sidebar_width"
 #define     CONFSTR_FB_COVERART             "filebrowser.coverart_files"
 #define     CONFSTR_FB_COVERART_SIZE        "filebrowser.coverart_size"
+#define     CONFSTR_FB_SAVE_TREEVIEW        "filebrowser.save_treeview"
 #define     CONFSTR_FB_EXPANDED_ROWS        "filebrowser.expanded_rows"
 #define     CONFSTR_FB_COLOR_BG             "filebrowser.bgcolor"
 #define     CONFSTR_FB_COLOR_FG             "filebrowser.fgcolor"
