@@ -1758,19 +1758,11 @@ on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
             mouseclick_dragwait = TRUE;
             if (! (event->state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK)))
             {
-                if (selected_rows <= 1)
+                if (selected_rows <= 1 || ! is_selected)
                 {
                     // select row
                     gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
                 }
-            }
-            else if (event->state & GDK_CONTROL_MASK)
-            {
-                // toggle selection
-                if (is_selected)
-                    gtk_tree_selection_unselect_path (selection, path);
-                else
-                    gtk_tree_selection_select_path (selection, path);
             }
             else if (event->state & GDK_SHIFT_MASK)
             {
@@ -1785,6 +1777,14 @@ on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
                         gtk_tree_selection_select_range (selection, mouseclick_lastpath, path);
                     }
                 }
+            }
+            else if (event->state & GDK_CONTROL_MASK)
+            {
+                // toggle selection
+                if (is_selected)
+                    gtk_tree_selection_unselect_path (selection, path);
+                else
+                    gtk_tree_selection_select_path (selection, path);
             }
         }
     }
@@ -1841,11 +1841,11 @@ on_treeview_mouseclick_release (GtkWidget *widget, GdkEventButton *event,
 
         if (mouseclick_dragwait)
         {
+            mouseclick_lastpath = path;
             mouseclick_dragwait = FALSE;
             if (! (event->state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK)))
             {
                 // select row (abort drag)
-                mouseclick_lastpath = path;
                 gtk_tree_view_set_cursor (GTK_TREE_VIEW (treeview), path, column, FALSE);
             }
         }
