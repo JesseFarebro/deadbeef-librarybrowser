@@ -189,10 +189,8 @@ save_config (void)
     {
         GString *config_expanded_rows_str = g_string_new ("");
         GSList *node;
-        for (node = expanded_rows; node; node = node->next)
+        for (node = expanded_rows->next; node; node = node->next)  // first item is always NULL
         {
-            if (node->data == NULL)
-                continue;
             if (config_expanded_rows_str->len > 0)
                 config_expanded_rows_str = g_string_append_c (config_expanded_rows_str, ' ');
             config_expanded_rows_str = g_string_append (config_expanded_rows_str, node->data);
@@ -255,8 +253,6 @@ load_config (void)
 
         for (int i = 0; i < g_strv_length(config_expanded_rows); i++)
         {
-            if (strlen(config_expanded_rows[i]) == 0)
-                continue;
             expanded_rows = g_slist_append (expanded_rows, g_strdup (config_expanded_rows[i]));
         }
         g_strfreev (config_expanded_rows);
@@ -437,7 +433,7 @@ void on_drag_data_get_helper (gpointer data, gpointer userdata)
     GtkTreeIter     iter;
     gchar           *uri, *enc_uri;
     GtkTreePath     *path       = data;
-    GString         *uri_list   = userdata;
+    GString         *uri_str    = userdata;
 
     if (! gtk_tree_model_get_iter (GTK_TREE_MODEL (treestore), &iter, path))
         return;
@@ -448,8 +444,9 @@ void on_drag_data_get_helper (gpointer data, gpointer userdata)
     /* Encode Filename to URI - important! */
     enc_uri = g_filename_to_uri (uri, NULL, NULL);
 
-    uri_list = g_string_append_c (uri_list, ' ');
-    uri_list = g_string_append (uri_list, enc_uri);
+    if (uri_str->len > 0)
+        uri_str = g_string_append_c (uri_str, ' ');
+    uri_str = g_string_append (uri_str, enc_uri);
 
     g_free (uri);
 }
@@ -461,25 +458,25 @@ on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_context,
 {
     GtkTreeSelection    *selection;
     GList               *rows;
-    GString             *uri_list;
+    GString             *uri_str;
 
     selection = gtk_tree_view_get_selection (GTK_TREE_VIEW (widget));
     rows = gtk_tree_selection_get_selected_rows (selection, NULL);
 
-    uri_list = g_string_new ("");
-    g_list_foreach (rows, (GFunc) on_drag_data_get_helper, uri_list);
-    g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
+    uri_str = g_string_new ("");
+    g_list_foreach (rows, (GFunc) on_drag_data_get_helper, uri_str);
+    g_list_foreach (rows, (GFunc) gtk_tree_path_free, NULL);
     g_list_free (rows);
 
-    gchar *uri_str = g_string_free (uri_list, FALSE);
-    trace("dnd send: %s\n", uri_str);
+    gchar *uri = g_string_free (uri_str, FALSE);
+    trace("dnd send: %s\n", uri);
 #if GTK_CHECK_VERSION(3,0,0)
     GdkAtom target = gtk_selection_data_get_target (sdata);
-    gtk_selection_data_set (sdata, target, 8, (guchar*) uri_str, strlen (uri_str));
+    gtk_selection_data_set (sdata, target, 8, (guchar*) uri, strlen (uri));
 #else
-    gtk_selection_data_set (sdata, sdata->target, 8, (guchar*) uri_str, strlen (uri_str));
+    gtk_selection_data_set (sdata, sdata->target, 8, (guchar*) uri, strlen (uri));
 #endif
-    g_free (uri_str);
+    g_free (uri);
 }
 
 
@@ -636,17 +633,9 @@ create_popup_menu (gchar *name, GList *uri_list)
     GtkWidget *plmenu   = gtk_menu_new ();  // submenu for playlists
     GtkWidget *item;
 
-    GString *uri_str = g_string_new ("");
-    GList *node;
-    for (node = uri_list; node; node = node->next)
-    {
-        if (! node->data)
-            continue;
-        g_string_append_c (uri_str, ' ');
-        g_string_append (uri_str, node->data);
-    }
-    gchar *uri = g_string_free (uri_str, FALSE);
-    trace("creating popup menu for files: %s\n", uri);
+    gchar *uri = "";
+    if (uri_list && uri_list->next)
+        uri = g_strdup (uri_list->next->data);  // first item in list
 
     gint num_items      = g_list_length (uri_list);
     gboolean is_exists  = FALSE;
@@ -659,6 +648,11 @@ create_popup_menu (gchar *name, GList *uri_list)
     else if (num_items > 1)
     {
         is_exists = TRUE;
+        GList *node;
+        for (node = uri_list->next; node; node = node->next)
+        {
+            is_exists = is_exists && g_file_test (node->data, G_FILE_TEST_EXISTS);
+        }
     }
 
     item = gtk_menu_item_new_with_mnemonic (_("_Add to current playlist"));
@@ -915,6 +909,9 @@ add_single_uri_to_playlist (gchar *uri, int index)
 static void
 add_uri_to_playlist (GList *uri_list, int index)
 {
+    if (! uri_list)
+        return;
+
     deadbeef->pl_lock ();
 
     ddb_playlist_t *plt;
@@ -926,25 +923,23 @@ add_uri_to_playlist (GList *uri_list, int index)
     else {
         if ((index == PLT_NEW) || (index >= count)) {
             const gchar *title = _("New Playlist");
-            if (g_list_length (uri_list) == 1)
+
+            if (deadbeef->conf_get_int ("gtkui.name_playlist_from_folder", 0))
             {
-                gchar *uri = "";
+                GString *title_str = g_string_new ("");
                 GList *node;
-                for (node = uri_list; node; node = node->next)
+                for (node = uri_list->next; node; node = node->next)  // first item is always NULL
                 {
-                    if (! node->data)
-                        continue;
-
-                    uri = node->data;
-                    break;
-                }
-
-                if (strlen(uri) > 0 && deadbeef->conf_get_int ("gtkui.name_playlist_from_folder", 0)) {
+                    gchar *uri = node->data;
                     const gchar *folder = strrchr (uri, '/');
+                    if (title_str->len > 0)
+                        g_string_append (title_str, ", ");
                     if (folder)
-                        title = folder+1;
+                        g_string_append (title_str, folder+1);
                 }
+                title = g_string_free (title_str, FALSE);
             }
+
             index = deadbeef->plt_add (count, g_strdup(title));
         }
 
@@ -960,22 +955,18 @@ add_uri_to_playlist (GList *uri_list, int index)
     if (deadbeef->plt_add_files_begin (plt, 0) >= 0)  // -1 means error
     {
         GList *node;
-        for (node = uri_list; node; node = node->next)
+        for (node = uri_list->next; node; node = node->next)
         {
-            if (! node->data)
-                continue;
-
             gchar *uri = node->data;
-            gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
+            trace("trying to add file/folder %s\n", uri);
             if (g_file_test (uri, G_FILE_TEST_IS_DIR)) {
-                if (deadbeef->plt_add_dir (plt, enc_uri, NULL, NULL) < 0)
-                    fprintf (stderr, _("failed to add folder %s\n"), enc_uri);
+                if (deadbeef->plt_add_dir (plt, uri, NULL, NULL) < 0)
+                    fprintf (stderr, _("failed to add folder %s\n"), uri);
             }
             else {
-                if (deadbeef->plt_add_file (plt, enc_uri, NULL, NULL) < 0)
-                    fprintf (stderr, _("failed to add file %s\n"), enc_uri);
+                if (deadbeef->plt_add_file (plt, uri, NULL, NULL) < 0)
+                    fprintf (stderr, _("failed to add file %s\n"), uri);
             }
-            g_free (enc_uri);
         }
         deadbeef->plt_modified (plt);
     }
@@ -1143,7 +1134,7 @@ treeview_check_expanded (gchar *uri)
         return NULL;
 
     GSList *node;
-    for (node = expanded_rows; node; node = node->next)
+    for (node = expanded_rows->next; node; node = node->next)  // first item is always NULL
     {
         gchar *enc_uri = g_filename_to_uri (uri, NULL, NULL);
         gboolean match = utils_str_equal (enc_uri, node->data);
@@ -1160,7 +1151,7 @@ treeview_clear_expanded (void)
     if (! expanded_rows)
         return;
 
-    for (GSList *node = expanded_rows; node; node = node->next)
+    for (GSList *node = expanded_rows->next; node; node = node->next)  // first items is always NULL
     {
         if (node->data)
             g_free (node->data);
@@ -1566,13 +1557,13 @@ on_menu_collapse_all(GtkMenuItem *menuitem, gpointer *user_data)
 static void
 on_menu_copy_uri(GtkMenuItem *menuitem, GList *uri_list)
 {
+    if (! uri_list)
+        return;
+
     GString *uri_str = g_string_new ("");
     GList *node;
-    for (node = uri_list; node; node = node->next)
+    for (node = uri_list->next; node; node = node->next)
     {
-        if (! node->data)
-            continue;
-
         gchar *enc_uri = g_filename_to_uri (node->data, NULL, NULL);
         uri_str = g_string_append_c (uri_str, ' ');
         uri_str = g_string_append (uri_str, enc_uri);
