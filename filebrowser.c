@@ -185,7 +185,7 @@ save_config (void)
     if (CONFIG_COLOR_FG_SEL)
         deadbeef->conf_set_str (CONFSTR_FB_COLOR_FG_SEL,    CONFIG_COLOR_FG_SEL);
 
-    if (CONFIG_SAVE_TREEVIEW && expanded_rows)
+    if (CONFIG_SAVE_TREEVIEW && expanded_rows)  // prevent overwriting with an empty list
     {
         GString *config_expanded_rows_str = g_string_new ("");
         GSList *node;
@@ -223,10 +223,6 @@ load_config (void)
 
     deadbeef->conf_lock ();
 
-    if (expanded_rows)
-        g_slist_free (expanded_rows);
-    expanded_rows = g_slist_alloc();
-
     CONFIG_ENABLED              = deadbeef->conf_get_int (CONFSTR_FB_ENABLED,             TRUE);
     CONFIG_HIDDEN               = deadbeef->conf_get_int (CONFSTR_FB_HIDDEN,              FALSE);
     CONFIG_SHOW_HIDDEN_FILES    = deadbeef->conf_get_int (CONFSTR_FB_SHOW_HIDDEN_FILES,   FALSE);
@@ -245,6 +241,10 @@ load_config (void)
     CONFIG_COLOR_FG             = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_FG,       ""));
     CONFIG_COLOR_BG_SEL         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_BG_SEL,   ""));
     CONFIG_COLOR_FG_SEL         = g_strdup (deadbeef->conf_get_str_fast (CONFSTR_FB_COLOR_FG_SEL,   ""));
+
+    if (expanded_rows)
+        g_slist_free (expanded_rows);
+    expanded_rows = g_slist_alloc();
 
     if (CONFIG_SAVE_TREEVIEW)
     {
@@ -635,15 +635,15 @@ create_popup_menu (gchar *name, GList *uri_list)
 
     gchar *uri = "";
     if (uri_list && uri_list->next)
-        uri = g_strdup (uri_list->next->data);  // first item in list
+        uri = g_strdup (uri_list->next->data);  // first "real" item in list
 
-    gint num_items      = g_list_length (uri_list);
+    gint num_items      = g_list_length (uri_list) - 1;  // first item is always NULL
     gboolean is_exists  = FALSE;
     gboolean is_dir     = FALSE;
     if (num_items == 1)
     {
         is_exists   = g_file_test (uri, G_FILE_TEST_EXISTS);
-        is_dir      = is_exists ? g_file_test (uri, G_FILE_TEST_IS_DIR) : FALSE;
+        is_dir      = is_exists && g_file_test (uri, G_FILE_TEST_IS_DIR);
     }
     else if (num_items > 1)
     {
@@ -1643,7 +1643,7 @@ on_button_refresh (void)
 static void
 on_button_go_up (void)
 {
-    treeview_clear_expanded ();
+    //treeview_clear_expanded ();
     gchar *uri = g_path_get_dirname (addressbar_last_address);
     treebrowser_chroot (uri);
     g_free (uri);
@@ -1652,7 +1652,7 @@ on_button_go_up (void)
 static void
 on_button_go_home (void)
 {
-    treeview_clear_expanded ();
+    //treeview_clear_expanded ();
     gchar *uri = utils_get_home_dir ();
     treebrowser_chroot (uri);
     g_free (uri);
@@ -1662,7 +1662,7 @@ on_button_go_home (void)
 static void
 on_button_go_root (void)
 {
-    treeview_clear_expanded ();
+    //treeview_clear_expanded ();
     gchar *uri = g_strdup (G_DIR_SEPARATOR_S);
     treebrowser_chroot (uri);
     g_free (uri);
@@ -1671,7 +1671,7 @@ on_button_go_root (void)
 static void
 on_button_go_default (void)
 {
-    treeview_clear_expanded ();
+    //treeview_clear_expanded ();
     gchar *uri = get_default_dir ();
     treebrowser_chroot (uri);
     g_free (uri);
@@ -1680,7 +1680,7 @@ on_button_go_default (void)
 static void
 on_addressbar_activate (GtkEntry *entry, gpointer user_data)
 {
-    treeview_clear_expanded ();
+    //treeview_clear_expanded ();
     gchar *uri = gtk_editable_get_chars (GTK_EDITABLE (entry), 0, -1);
     treebrowser_chroot (uri);
     g_free (uri);
@@ -2033,7 +2033,8 @@ plugin_cleanup (void)
     trace ("cleanup\n");
     treeview_clear_expanded ();
 
-    g_slist_free (expanded_rows);
+    if (expanded_rows)
+        g_slist_free (expanded_rows);
     g_free (addressbar_last_address);
     g_free (known_extensions);
 
