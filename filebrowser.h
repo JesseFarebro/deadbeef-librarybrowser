@@ -95,7 +95,7 @@ static void         on_drag_data_get (GtkWidget *widget, GdkDragContext *drag_co
 static int          create_menu_entry (void);
 static int          create_interface (GtkWidget *cont);
 static int          restore_interface (GtkWidget *cont);
-static GtkWidget *  create_popup_menu (gchar *name, GList *uri_list);
+static GtkWidget *  create_popup_menu (GtkTreePath *path, gchar *name, GList *uri_list);
 static GtkWidget *  create_view_and_model (void);
 static void         create_sidebar (void);
 

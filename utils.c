@@ -247,3 +247,41 @@ utils_construct_style( const gchar *bgcolor, const gchar *fgcolor, const gchar *
     gtk_rc_parse_string (style_str);
     g_free (style_str);
 }
+
+gboolean
+tree_view_expand_rows_recursive (GtkTreeModel *model, GtkTreeView *view, GtkTreePath *parent)
+{
+    GtkTreeIter iter;
+    if (! gtk_tree_model_get_iter(model, &iter, parent))  // check if path is valid
+        return FALSE;
+
+    // when expanding, this should come *before* going down the tree
+    gtk_tree_view_expand_row (view, parent, TRUE);
+
+    GtkTreePath *path = gtk_tree_path_copy (parent);
+    gtk_tree_path_down (path);
+    while (tree_view_expand_rows_recursive (model, view, path))
+        gtk_tree_path_next (path);
+    gtk_tree_path_free (path);
+
+    return TRUE;
+}
+
+gboolean
+tree_view_collapse_rows_recursive (GtkTreeModel *model, GtkTreeView *view, GtkTreePath *parent)
+{
+    GtkTreeIter iter;
+    if (! gtk_tree_model_get_iter(model, &iter, parent))  // check if path is valid
+        return FALSE;
+
+    GtkTreePath *path = gtk_tree_path_copy (parent);
+    gtk_tree_path_down (path);
+    while (tree_view_collapse_rows_recursive (model, view, path))
+        gtk_tree_path_next (path);
+    gtk_tree_path_free (path);
+
+    // when expanding, this should come *after* going down the tree
+    gtk_tree_view_collapse_row (view, parent);
+
+    return TRUE;
+}

@@ -626,7 +626,7 @@ restore_interface (GtkWidget *cont)
 }
 
 static GtkWidget*
-create_popup_menu (gchar *name, GList *uri_list)
+create_popup_menu (GtkTreePath *path, gchar *name, GList *uri_list)
 {
     trace("create popup menu\n");
     GtkWidget *menu     = gtk_menu_new ();
@@ -721,11 +721,11 @@ create_popup_menu (gchar *name, GList *uri_list)
 
     item = gtk_menu_item_new_with_mnemonic (_("E_xpand all"));
     gtk_container_add (GTK_CONTAINER (menu), item);
-    g_signal_connect (item, "activate", G_CALLBACK (on_menu_expand_all), NULL);
+    g_signal_connect (item, "activate", G_CALLBACK (on_menu_expand_all), path);
 
     item = gtk_menu_item_new_with_mnemonic (_("_Collapse all"));
     gtk_container_add (GTK_CONTAINER (menu), item);
-    g_signal_connect (item, "activate", G_CALLBACK (on_menu_collapse_all), NULL);
+    g_signal_connect (item, "activate", G_CALLBACK (on_menu_collapse_all), path);
 
     item = gtk_separator_menu_item_new ();
     gtk_container_add(GTK_CONTAINER (menu), item);
@@ -1545,13 +1545,37 @@ on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data)
 static void
 on_menu_expand_all(GtkMenuItem *menuitem, gpointer *user_data)
 {
-    gtk_tree_view_expand_all (GTK_TREE_VIEW (treeview));
+    GtkTreePath *path = gtk_tree_path_copy ((GtkTreePath *) user_data);
+
+    if (! path)
+    {
+        gtk_tree_view_expand_all (GTK_TREE_VIEW (treeview));
+        GtkTreeIter iter;
+        gtk_tree_model_get_iter_first (GTK_TREE_MODEL (treestore), &iter);
+        path = gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &iter);
+    }
+
+    tree_view_expand_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path);
+
+    gtk_tree_path_free (path);
 }
 
 static void
 on_menu_collapse_all(GtkMenuItem *menuitem, gpointer *user_data)
 {
-    gtk_tree_view_collapse_all (GTK_TREE_VIEW (treeview));
+    GtkTreePath *path = gtk_tree_path_copy ((GtkTreePath *) user_data);
+
+    if (! path)
+    {
+        //gtk_tree_view_collapse_all (GTK_TREE_VIEW (treeview));
+        GtkTreeIter iter;
+        gtk_tree_model_get_iter_first (GTK_TREE_MODEL (treestore), &iter);
+        path = gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &iter);
+    }
+
+    tree_view_collapse_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path);
+
+    gtk_tree_path_free (path);
 }
 
 static void
@@ -1724,8 +1748,8 @@ on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
     mouseclick_dragwait = FALSE;
 
     gint selected_rows = gtk_tree_selection_count_selected_rows (selection);
-    gboolean is_selected = gtk_tree_selection_path_is_selected (selection, path);
-    gboolean is_expanded = gtk_tree_view_row_expanded (GTK_TREE_VIEW (treeview), path);
+    gboolean is_selected = path ? gtk_tree_selection_path_is_selected (selection, path) : FALSE;
+    gboolean is_expanded = path ? gtk_tree_view_row_expanded (GTK_TREE_VIEW (treeview), path) : FALSE;
 
     if (event->button == 1)
     {
@@ -1798,7 +1822,7 @@ on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
             g_list_foreach (rows, (GFunc)gtk_tree_path_free, NULL);
             g_list_free (rows);
 
-            gtk_menu_popup (GTK_MENU (create_popup_menu ("", uri_list)),
+            gtk_menu_popup (GTK_MENU (create_popup_menu (path, "", uri_list)),
                             NULL, NULL, NULL, NULL, event->button, event->time);
         }
     }
