@@ -127,6 +127,7 @@ static void         on_menu_add_new (GtkMenuItem *menuitem, GList *uri_list);
 static void         on_menu_enter_directory (GtkMenuItem *menuitem, gchar *uri);
 static void         on_menu_go_up (GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data);
+static void         on_menu_expand_one(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_expand_all(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_collapse_all(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_copy_uri(GtkMenuItem *menuitem, GList *uri_list);

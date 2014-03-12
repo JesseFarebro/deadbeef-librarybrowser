@@ -719,6 +719,10 @@ create_popup_menu (GtkTreePath *path, gchar *name, GList *uri_list)
     item = gtk_separator_menu_item_new ();
     gtk_container_add (GTK_CONTAINER (menu), item);
 
+    item = gtk_menu_item_new_with_mnemonic (_("Expand one _level"));
+    gtk_container_add (GTK_CONTAINER (menu), item);
+    g_signal_connect (item, "activate", G_CALLBACK (on_menu_expand_one), path);
+
     item = gtk_menu_item_new_with_mnemonic (_("E_xpand all"));
     gtk_container_add (GTK_CONTAINER (menu), item);
     g_signal_connect (item, "activate", G_CALLBACK (on_menu_expand_all), path);
@@ -1543,19 +1547,48 @@ on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data)
 }
 
 static void
-on_menu_expand_all(GtkMenuItem *menuitem, gpointer *user_data)
+on_menu_expand_one(GtkMenuItem *menuitem, gpointer *user_data)
 {
-    GtkTreePath *path = gtk_tree_path_copy ((GtkTreePath *) user_data);
+    GtkTreePath *path = user_data ? gtk_tree_path_copy ((GtkTreePath *) user_data) : NULL;
 
     if (! path)
     {
-        gtk_tree_view_expand_all (GTK_TREE_VIEW (treeview));
+        // apply to all items on first level
         GtkTreeIter iter;
         gtk_tree_model_get_iter_first (GTK_TREE_MODEL (treestore), &iter);
+
         path = gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &iter);
+        while (tree_view_expand_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path, 2)) // use depth 2 here
+            gtk_tree_path_next (path);
+    }
+    else
+    {
+        gint depth = gtk_tree_path_get_depth (path);
+        tree_view_expand_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path, depth+1);
     }
 
-    tree_view_expand_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path);
+    gtk_tree_path_free (path);
+}
+
+static void
+on_menu_expand_all(GtkMenuItem *menuitem, gpointer *user_data)
+{
+    GtkTreePath *path = user_data ? gtk_tree_path_copy ((GtkTreePath *) user_data) : NULL;
+
+    if (! path)
+    {
+        // apply to all items on first level
+        GtkTreeIter iter;
+        gtk_tree_model_get_iter_first (GTK_TREE_MODEL (treestore), &iter);
+
+        path = gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &iter);
+        while (tree_view_expand_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path, 0))
+            gtk_tree_path_next (path);
+    }
+    else
+    {
+        tree_view_expand_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path, 0); // expand all
+    }
 
     gtk_tree_path_free (path);
 }
@@ -1563,17 +1596,22 @@ on_menu_expand_all(GtkMenuItem *menuitem, gpointer *user_data)
 static void
 on_menu_collapse_all(GtkMenuItem *menuitem, gpointer *user_data)
 {
-    GtkTreePath *path = gtk_tree_path_copy ((GtkTreePath *) user_data);
+    GtkTreePath *path = user_data ? gtk_tree_path_copy ((GtkTreePath *) user_data) : NULL;
 
     if (! path)
     {
-        //gtk_tree_view_collapse_all (GTK_TREE_VIEW (treeview));
+        // apply to all items on first level
         GtkTreeIter iter;
         gtk_tree_model_get_iter_first (GTK_TREE_MODEL (treestore), &iter);
-        path = gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &iter);
-    }
 
-    tree_view_collapse_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path);
+        path = gtk_tree_model_get_path (GTK_TREE_MODEL (treestore), &iter);
+        while (tree_view_expand_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path, 0))
+            gtk_tree_path_next (path);
+    }
+    else
+    {
+        tree_view_collapse_rows_recursive (GTK_TREE_MODEL (treestore), GTK_TREE_VIEW (treeview), path, 0);
+    }
 
     gtk_tree_path_free (path);
 }
