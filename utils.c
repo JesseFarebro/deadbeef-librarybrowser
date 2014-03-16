@@ -189,6 +189,7 @@ utils_make_cache_path (const gchar *uri, gint imgsize)
     path = g_string_new (cachedir);
     g_string_append_printf (path, "/%s.png", fname);
     g_free (cachedir);
+    g_free (fname);
 
     return g_string_free (path, FALSE);
 }
