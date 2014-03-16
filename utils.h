@@ -40,7 +40,7 @@ gint
 utils_check_dir (const gchar *dir, mode_t mode);
 
 void
-utils_construct_style( const gchar *bgcolor, const gchar *fgcolor, const gchar *bgcolor_sel, const gchar *fgcolor_sel );
+utils_construct_style (GtkWidget *widget, const gchar *bgcolor, const gchar *fgcolor, const gchar *bgcolor_sel, const gchar *fgcolor_sel);
 
 gboolean
 tree_view_expand_rows_recursive (GtkTreeModel *model, GtkTreeView *view, GtkTreePath *parent, gint max_depth);

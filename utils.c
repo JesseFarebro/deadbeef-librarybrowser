@@ -223,8 +223,11 @@ utils_check_dir (const gchar *dir, mode_t mode)
 }
 
 void
-utils_construct_style( const gchar *bgcolor, const gchar *fgcolor, const gchar *bgcolor_sel, const gchar *fgcolor_sel )
+utils_construct_style (GtkWidget *widget, const gchar *bgcolor, const gchar *fgcolor, const gchar *bgcolor_sel, const gchar *fgcolor_sel)
 {
+    if (! widget)
+        return;
+
     GString *style = g_string_new ("");
     style = g_string_append (style, "style \"deadbeef-filebrowser\" { \n");
     if (strlen(bgcolor) > 0)       g_string_append_printf (style, "    base[NORMAL]   = \"%s\" \n", bgcolor);
@@ -244,7 +247,14 @@ utils_construct_style( const gchar *bgcolor, const gchar *fgcolor, const gchar *
 
     gchar* style_str = g_string_free (style, FALSE);
     fprintf(stderr, "gtk style: \n%s", style_str);
+#if !GTK_CHECK_VERSION(3,0,0)
     gtk_rc_parse_string (style_str);
+#else
+    GtkCssProvider *css_provider = gtk_css_provider_get_default ();  // do NOT free!
+    gtk_css_provider_load_from_data (css_provider, style_str, -1, NULL);
+    GtkStyleContext *style_ctx = gtk_widget_get_style_context (widget);  // do NOT free!
+    gtk_style_context_add_provider (style_ctx, (GtkStyleProvider *) css_provider, GTK_STYLE_PROVIDER_PRIORITY_USER);
+#endif
     g_free (style_str);
 }
 

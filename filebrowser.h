@@ -100,7 +100,7 @@ static GtkWidget *  create_view_and_model (void);
 static void         create_sidebar (void);
 
 static void         gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root);
-static void         add_single_uri_to_playlist (gchar *uri, int plt);
+//static void         add_single_uri_to_playlist (gchar *uri, int plt);
 static void         add_uri_to_playlist (GList *uri_list, int plt);
 static gboolean     check_filtered (const gchar *base_name);
 static gboolean     check_hidden (const gchar *filename);

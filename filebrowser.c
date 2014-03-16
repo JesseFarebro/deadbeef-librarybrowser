@@ -260,7 +260,7 @@ load_config (void)
 
     deadbeef->conf_unlock ();
 
-    utils_construct_style ( CONFIG_COLOR_BG, CONFIG_COLOR_FG, CONFIG_COLOR_BG_SEL, CONFIG_COLOR_FG_SEL );
+    utils_construct_style (treeview, CONFIG_COLOR_BG, CONFIG_COLOR_FG, CONFIG_COLOR_BG_SEL, CONFIG_COLOR_FG_SEL);
 
     trace("config loaded - new settings: \n"
         "enabled:           %d \n"
@@ -901,6 +901,7 @@ gtk_tree_store_iter_clear_nodes (gpointer iter, gboolean delete_root)
 }
 
 /* Add given URI to DeaDBeeF's current playlist */
+/*
 static void
 add_single_uri_to_playlist (gchar *uri, int index)
 {
@@ -909,7 +910,7 @@ add_single_uri_to_playlist (gchar *uri, int index)
     add_uri_to_playlist (uri_list, index);
     g_list_free (uri_list);
 }
-
+*/
 static void
 add_uri_to_playlist (GList *uri_list, int index)
 {

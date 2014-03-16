@@ -38,19 +38,19 @@ if HAVE_GTK2
 ddb_misc_filebrowser_GTK2_la_SOURCES = $(filebrowser_SOURCES)
 ddb_misc_filebrowser_GTK2_la_LDFLAGS = -module
 ddb_misc_filebrowser_GTK2_la_LIBADD  = $(LDADD) $(GTK2_DEPS_LIBS)
-ddb_misc_filebrowser_GTK2_la_CFLAGS  = -std=c99 $(GTK2_DEPS_CFLAGS) -Wall
+ddb_misc_filebrowser_GTK2_la_CFLAGS  = -std=c99 $(GTK2_DEPS_CFLAGS) -Wall -Werror -g
 endif
 if HAVE_GTK3
 ddb_misc_filebrowser_GTK3_la_SOURCES = $(filebrowser_SOURCES)
 ddb_misc_filebrowser_GTK3_la_LDFLAGS = -module
 ddb_misc_filebrowser_GTK3_la_LIBADD  = $(LDADD) $(GTK3_DEPS_LIBS)
-ddb_misc_filebrowser_GTK3_la_CFLAGS  = -std=c99 $(GTK3_DEPS_CFLAGS) -Wall
+ddb_misc_filebrowser_GTK3_la_CFLAGS  = -std=c99 $(GTK3_DEPS_CFLAGS) -Wall -Werror -g
 endif
 
 docsdir = $(docdir)
 docs_DATA = README COPYING AUTHORS ChangeLog
 
-dist_data_DATA = 
+dist_data_DATA =
 
 EXTRA_DIST = \
 	userinstall.sh quickinstall.sh userremove.sh quickremove.sh \
