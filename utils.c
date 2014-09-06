@@ -165,10 +165,10 @@ utils_make_cache_path (const gchar *uri, gint imgsize)
      *     /home/user/.cache/deadbeef-fb/24/home_user_Music_SomeArtist_Album01.png
      */
     const gchar *cache = g_getenv ("XDG_CACHE_HOME");
-    GString *path;
+    GString *path, *fullpath;
     gchar *cachedir, *fname;
 
-    path = g_string_sized_new (128);  // reasonable initial size
+    path = g_string_sized_new (256);  // reasonable initial size
     g_string_printf (path,
                     cache ? "%s/deadbeef-fb/icons/%d/" : "%s/.cache/deadbeef-fb/icons/%d/",
                     cache ? cache : g_getenv ("HOME"),
@@ -179,6 +179,8 @@ utils_make_cache_path (const gchar *uri, gint imgsize)
     if (! g_file_test (cachedir, G_FILE_TEST_IS_DIR))
         utils_check_dir (cachedir, 0755);
 
+    fullpath = g_string_new (g_strdup (cachedir));
+
     fname = g_strdup (uri);
     for (gchar *p = fname+1; *p; p++) {
         if ((*p == G_DIR_SEPARATOR_S[0]) || (*p == ' ')) {
@@ -186,12 +188,12 @@ utils_make_cache_path (const gchar *uri, gint imgsize)
         }
     }
 
-    path = g_string_new (cachedir);
-    g_string_append_printf (path, "/%s.png", fname);
+    g_string_append_printf (fullpath, "/%s.png", fname);
+
     g_free (cachedir);
     g_free (fname);
 
-    return g_string_free (path, FALSE);
+    return g_string_free (fullpath, FALSE);
 }
 
 /* Copied from  <deadbeef>/plugins/artwork/artwork.c  with few adjustments */
@@ -230,6 +232,7 @@ utils_construct_style (GtkWidget *widget, const gchar *bgcolor, const gchar *fgc
         return;
 
     GString *style = g_string_new ("");
+#if !GTK_CHECK_VERSION(3,0,0)
     style = g_string_append (style, "style \"deadbeef-filebrowser\" { \n");
     if (strlen(bgcolor) > 0)       g_string_append_printf (style, "    base[NORMAL]   = \"%s\" \n", bgcolor);
     if (strlen(bgcolor_sel) > 0)   g_string_append_printf (style, "    base[SELECTED] = \"%s\" \n", bgcolor_sel);
@@ -245,6 +248,20 @@ utils_construct_style (GtkWidget *widget, const gchar *bgcolor, const gchar *fgc
     if (strlen(fgcolor_sel) > 0)   g_string_append_printf (style, "    fg[ACTIVE]     = \"%s\" \n", fgcolor_sel);
     style = g_string_append (style, "} \n");
     style = g_string_append (style, "widget \"*.deadbeef_filebrowser_treeview\" style \"deadbeef-filebrowser\" \n");
+#else
+    style = g_string_append (style, "* { \n");
+    if (strlen(bgcolor) > 0)       g_string_append_printf (style, "    background-color: %s; \n", bgcolor);
+    if (strlen(fgcolor) > 0)       g_string_append_printf (style, "    color:            %s; \n", fgcolor);
+    style = g_string_append (style, "} \n");
+    style = g_string_append (style, "*:selected { \n");
+    if (strlen(bgcolor_sel) > 0)   g_string_append_printf (style, "    background-color: %s; \n", bgcolor_sel);
+    if (strlen(fgcolor_sel) > 0)   g_string_append_printf (style, "    color:            %s; \n", fgcolor_sel);
+    style = g_string_append (style, "} \n");
+    style = g_string_append (style, "*:active { \n");
+    if (strlen(bgcolor_sel) > 0)   g_string_append_printf (style, "    background-color: %s; \n", bgcolor_sel);
+    if (strlen(fgcolor_sel) > 0)   g_string_append_printf (style, "    color:            %s; \n", fgcolor_sel);
+    style = g_string_append (style, "} \n");
+#endif
 
     gchar* style_str = g_string_free (style, FALSE);
     fprintf(stderr, "gtk style: \n%s", style_str);

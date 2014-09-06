@@ -19,6 +19,7 @@ if [ -d ${INSTALLDIR} ]; then
     for file in ./usr/local/lib/deadbeef/*.so.0.0.0; do
         cp -v $file ./`basename $file .0.0.0`
     done
+    cp ${OLDPWD}/../README ./README
     tar -czf $BINTARGET ./
     cd ${OLDPWD}
 fi

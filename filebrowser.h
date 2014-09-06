@@ -37,6 +37,7 @@
 #define     CONFSTR_FB_FILTER_AUTO          "filebrowser.autofilter"
 #define     CONFSTR_FB_SHOW_BOOKMARKS       "filebrowser.showbookmarks"
 #define     CONFSTR_FB_SHOW_ICONS           "filebrowser.showicons"
+#define     CONFSTR_FB_SHOW_TREE_LINES      "filebrowser.treelines"
 #define     CONFSTR_FB_WIDTH                "filebrowser.sidebar_width"
 #define     CONFSTR_FB_COVERART             "filebrowser.coverart_files"
 #define     CONFSTR_FB_COVERART_SIZE        "filebrowser.coverart_size"
@@ -46,6 +47,9 @@
 #define     CONFSTR_FB_COLOR_FG             "filebrowser.fgcolor"
 #define     CONFSTR_FB_COLOR_BG_SEL         "filebrowser.bgcolor_selected"
 #define     CONFSTR_FB_COLOR_FG_SEL         "filebrowser.fgcolor_selected"
+#define     CONFSTR_FB_COLOR_FG             "filebrowser.fgcolor"
+#define     CONFSTR_FB_FONT_SIZE            "filebrowser.font_size"
+#define     CONFSTR_FB_ICON_SIZE            "filebrowser.icon_size"
 
 #define     DEFAULT_FB_DEFAULT_PATH         ""
 #define     DEFAULT_FB_FILTER               ""  // auto-filter enabled by default
@@ -125,7 +129,6 @@ static void         on_menu_add (GtkMenuItem *menuitem, GList *uri_list);
 static void         on_menu_add_current (GtkMenuItem *menuitem, GList *uri_list);
 static void         on_menu_add_new (GtkMenuItem *menuitem, GList *uri_list);
 static void         on_menu_enter_directory (GtkMenuItem *menuitem, gchar *uri);
-static void         on_menu_go_up (GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_expand_one(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_expand_all(GtkMenuItem *menuitem, gpointer *user_data);
@@ -135,20 +138,11 @@ static void         on_menu_show_bookmarks (GtkMenuItem *menuitem, gpointer *use
 static void         on_menu_show_hidden_files(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_use_filter(GtkMenuItem *menuitem, gpointer *user_data);
 
-static void         on_button_add_current (void);
-static void         on_button_refresh (void);
-static void         on_button_go_up (void);
-static void         on_button_go_home (void);
-static void         on_button_go_root (void);
-static void         on_button_go_default (void);
-static void         on_addressbar_activate (GtkEntry *entry, gpointer user_data);
-
 static gboolean     on_treeview_mouseclick_press (GtkWidget *widget, GdkEventButton *event,
                             GtkTreeSelection *selection);
 static gboolean     on_treeview_mouseclick_release (GtkWidget *widget, GdkEventButton *event,
                             GtkTreeSelection *selection);
 static gboolean     on_treeview_mousemove (GtkWidget *widget, GdkEventButton *event);
-static void         on_treeview_changed (GtkWidget *widget, gpointer user_data);
 //static void         on_treeview_row_activated (GtkWidget *widget, GtkTreePath *path,
 //                            GtkTreeViewColumn *column, gpointer user_data);
 static void         on_treeview_row_expanded (GtkWidget *widget, GtkTreeIter *iter,
