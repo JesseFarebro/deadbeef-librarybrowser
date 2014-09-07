@@ -4,7 +4,7 @@ FLAG=$1
 
 OLDPWD=`pwd`
 
-PACKAGENAME=deadbeef-fb
+PACKAGENAME=deadbeef-lb
 DISTPACKAGENAME=deadbeef-devel
 INSTALLDIR=${OLDPWD}/../install
 
