@@ -119,22 +119,17 @@ static void         treeview_clear_expanded (void);
 static void         treeview_restore_expanded (gpointer parent);
 static gboolean     treeview_separator_func (GtkTreeModel *model, GtkTreeIter *iter,
                             gpointer data);
-static gboolean     treebrowser_checkdir (const gchar *directory);
 static void         treebrowser_chroot(gchar *directory);
 static gboolean     treebrowser_browse (gchar *directory, gpointer parent);
-static void         treebrowser_bookmarks_set_state (void);
-static void         treebrowser_load_bookmarks (void);
 
 static void         on_menu_add (GtkMenuItem *menuitem, GList *uri_list);
 static void         on_menu_add_current (GtkMenuItem *menuitem, GList *uri_list);
 static void         on_menu_add_new (GtkMenuItem *menuitem, GList *uri_list);
-static void         on_menu_enter_directory (GtkMenuItem *menuitem, gchar *uri);
 static void         on_menu_refresh (GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_expand_one(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_expand_all(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_collapse_all(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_copy_uri(GtkMenuItem *menuitem, GList *uri_list);
-static void         on_menu_show_bookmarks (GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_show_hidden_files(GtkMenuItem *menuitem, gpointer *user_data);
 static void         on_menu_use_filter(GtkMenuItem *menuitem, gpointer *user_data);
 
