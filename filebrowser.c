@@ -715,11 +715,6 @@ create_popup_menu (GtkTreePath *path, gchar *name, GList *uri_list)
     item = gtk_separator_menu_item_new ();
     gtk_container_add(GTK_CONTAINER (menu), item);
 
-    item = gtk_menu_item_new_with_mnemonic (_("_Enter directory"));
-    gtk_container_add (GTK_CONTAINER (menu), item);
-    g_signal_connect (item, "activate", G_CALLBACK (on_menu_enter_directory), uri);
-    gtk_widget_set_sensitive (item, is_dir);
-
     item = gtk_menu_item_new_with_mnemonic (_("_Refresh"));
     gtk_container_add (GTK_CONTAINER (menu), item);
     g_signal_connect (item, "activate", G_CALLBACK (on_menu_refresh), NULL);
