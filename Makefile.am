@@ -1,21 +1,6 @@
 release: all
 	./makerelease.sh
 
-#SUBDIRS = \
-#	intl\
-#	po
-
-#INTLTOOL_FILES = \
-#	intltool-extract.in \
-#	intltool-merge.in \
-#	intltool-update.in
-
-#DISTCLEANFILES = \
-#	intltool-extract \
-#	intltool-merge \
-#	intltool-update \
-#	po/.intltool-merge-cache
-
 filebrowser_SOURCES = \
 	filebrowser.c filebrowser.h \
 	support.c support.h \
@@ -47,15 +32,8 @@ ddb_misc_filebrowser_GTK3_la_LIBADD  = $(LDADD) $(GTK3_DEPS_LIBS)
 ddb_misc_filebrowser_GTK3_la_CFLAGS  = -std=c99 $(GTK3_DEPS_CFLAGS) -Wall -Werror -g
 endif
 
-docsdir = $(docdir)
-docs_DATA = README COPYING AUTHORS ChangeLog
-
-dist_data_DATA =
 
 EXTRA_DIST = \
-	userinstall.sh quickinstall.sh userremove.sh quickremove.sh \
-	$(docs_DATA)
-#$(INTLTOOL_FILES)
+	userinstall.sh quickinstall.sh userremove.sh quickremove.sh
 
 ACLOCAL_AMFLAGS = -I m4
-

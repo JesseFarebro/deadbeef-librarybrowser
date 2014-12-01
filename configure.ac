@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_INIT([deadbeef-lb],[devel])
-AM_INIT_AUTOMAKE()
+AM_INIT_AUTOMAKE([foreign])
 
 dnl Override $PACKAGE to make $pkglibdir use deadbeef search path
 PACKAGE=deadbeef
